@@ -1,0 +1,4 @@
+/* Tailwind entry point. The CLI scans the project (skipping .gitignore'd
+   files) for class names and writes only the CSS that's used to
+   static/css/app.css. */
+@import "tailwindcss";

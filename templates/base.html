@@ -1,0 +1,15 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Book an appointment{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'js/htmx.min.js' %}" defer></script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
+  <main class="mx-auto max-w-2xl px-4 py-10">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

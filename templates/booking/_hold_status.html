@@ -1,0 +1,46 @@
+{% load tz %}
+{% comment %}
+  While a payment is being confirmed this box re-fetches itself every 3s.
+  Every other state renders without hx-trigger, which stops the polling.
+{% endcomment %}
+{% timezone business.timezone %}
+<div id="hold-status" class="mt-6"
+     {% if state == "confirming" %}
+       hx-get="{% url 'booking:hold_status' booking.public_id %}?reference={{ reference|urlencode }}"
+       hx-trigger="every 3s" hx-swap="outerHTML"
+     {% endif %}>
+
+  {% if state == "pay" %}
+    <p class="text-sm text-slate-700">
+      We're holding this time until <strong>{{ booking.hold_expires_at|time:"H:i" }}</strong>.
+      Pay the deposit before then to confirm.
+    </p>
+    <form method="post" action="{% url 'booking:pay' booking.public_id %}" class="mt-4">
+      {% csrf_token %}
+      <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700">
+        Pay deposit
+      </button>
+    </form>
+
+  {% elif state == "confirming" %}
+    <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
+      Payment received — confirming your booking…
+    </p>
+
+  {% elif state == "confirmed" %}
+    <p class="rounded-lg bg-green-50 p-3 text-sm text-green-800">Your booking is confirmed. See you then!</p>
+
+  {% elif state == "refund_due" %}
+    <p class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+      We received your payment, but this time was booked by someone else before it arrived.
+      Your deposit will be refunded.
+      <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.
+    </p>
+
+  {% else %}
+    <p class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+      This hold has expired. <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.
+    </p>
+  {% endif %}
+</div>
+{% endtimezone %}

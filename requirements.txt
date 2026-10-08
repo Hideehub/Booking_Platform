@@ -1,0 +1,4 @@
+Django==5.2.18
+psycopg[binary]==3.3.6
+django-environ==0.14.0
+gunicorn==26.2.0

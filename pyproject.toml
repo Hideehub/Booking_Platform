@@ -1,0 +1,45 @@
+[project]
+name = "booking-platform"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "DJ",  # flake8-django
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["mypy_django_plugin.main"]
+exclude = ["/migrations/"]
+
+# django-environ ships no type hints; scope the exemption to that one package.
+[[tool.mypy.overrides]]
+module = ["environ"]
+ignore_missing_imports = true
+
+# ModelAdmin[Model] isn't subscriptable at runtime without django-stubs-ext's
+# monkeypatch (a runtime dependency); allow bare generics in admin modules only.
+[[tool.mypy.overrides]]
+module = ["*.admin"]
+disallow_any_generics = false
+
+[tool.django-stubs]
+django_settings_module = "config.settings.dev"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+addopts = "--reuse-db"
+python_files = ["test_*.py"]

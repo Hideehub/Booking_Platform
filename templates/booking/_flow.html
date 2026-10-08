@@ -1,0 +1,114 @@
+{% load tz booking_extras %}
+{% comment %}
+  The whole flow is one fragment. hx-boost turns its links and form into
+  HTMX requests that replace #flow (and push the URL); without JavaScript
+  they are ordinary links and a normal form POST.
+{% endcomment %}
+{% timezone business.timezone %}
+<div id="flow" class="mt-8 space-y-8" hx-boost="true" hx-target="#flow" hx-swap="outerHTML">
+
+  {% if error %}
+    {# At the top so it shows even when the rejected date hides later steps. #}
+    <p role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{{ error }}</p>
+  {% endif %}
+
+  <section>
+    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">1. Service</h2>
+    <div class="mt-3 grid gap-2">
+      {% for choice in services %}
+        <a href="{{ choice.url }}"
+           class="flex items-center justify-between rounded-lg border p-3 {% if choice.selected %}border-indigo-600 bg-indigo-50{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
+          <span class="font-medium">{{ choice.value.name }}</span>
+          <span class="text-sm text-slate-500">
+            {{ choice.value.duration|minutes }} · deposit {{ choice.value.deposit_minor|money:business.currency }}
+          </span>
+        </a>
+      {% empty %}
+        <p class="text-slate-500">No services are available to book yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  {% if service %}
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">2. With</h2>
+      <div class="mt-3 flex flex-wrap gap-2">
+        {% for choice in staff_choices %}
+          <a href="{{ choice.url }}"
+             class="rounded-full border px-4 py-2 {% if choice.selected %}border-indigo-600 bg-indigo-600 text-white{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
+            {{ choice.value.name }}
+          </a>
+        {% empty %}
+          <p class="text-slate-500">Nobody offers this service right now.</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if staff %}
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">3. Date</h2>
+      <div class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
+        {% for choice in day_choices %}
+          {% if choice.disabled %}
+            <span class="rounded-lg border border-slate-100 bg-slate-100 p-2 text-center text-sm text-slate-400" title="Not working this day">
+              {{ choice.value|date:"D" }}<br>{{ choice.value|date:"j M" }}
+            </span>
+          {% else %}
+            <a href="{{ choice.url }}"
+               class="rounded-lg border p-2 text-center text-sm {% if choice.selected %}border-indigo-600 bg-indigo-600 text-white{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
+              {{ choice.value|date:"D" }}<br>{{ choice.value|date:"j M" }}
+            </a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if day %}
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">4. Time on {{ day|date:"l j F" }}</h2>
+      <div class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+        {% for choice in slot_choices %}
+          <a href="{{ choice.url }}"
+             class="rounded-lg border p-2 text-center text-sm {% if choice.selected %}border-indigo-600 bg-indigo-600 text-white{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
+            {{ choice.value|time:"H:i" }}
+          </a>
+        {% empty %}
+          <p class="col-span-full text-slate-500">No times available on this day.</p>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% if form %}
+    <section>
+      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">5. Your details</h2>
+      <p class="mt-1 text-sm text-slate-600">
+        {{ service.name }} with {{ staff.name }}, {{ start|date:"l j F" }} at {{ start|time:"H:i" }}.
+        {% if service.deposit_minor %}We'll hold this time for 15 minutes while you pay the deposit.{% endif %}
+      </p>
+      <form method="post" action="{% url 'booking:create_hold' business.slug %}" hx-push-url="false" class="mt-4 space-y-4 rounded-lg border border-slate-200 bg-white p-4">
+        {% csrf_token %}
+        {{ form.service }}{{ form.staff }}{{ form.start }}
+        {% if form.non_field_errors or form.start.errors %}
+          <p role="alert" class="text-sm text-red-700">{{ form.non_field_errors|join:" " }} {{ form.start.errors|join:" " }}</p>
+        {% endif %}
+        {% for field in form.visible_fields %}
+          <div>
+            <label for="{{ field.id_for_label }}" class="block text-sm font-medium">{{ field.label }}</label>
+            <input type="{{ field.field.widget.input_type }}" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                   value="{{ field.value|default_if_none:'' }}" {% if field.field.required %}required{% endif %}
+                   class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 focus:border-indigo-600 focus:outline-none">
+            {% for error in field.errors %}<p class="mt-1 text-sm text-red-700">{{ error }}</p>{% endfor %}
+          </div>
+        {% endfor %}
+        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700">
+          {% if service.deposit_minor %}Hold this time{% else %}Book this time{% endif %}
+        </button>
+      </form>
+    </section>
+  {% endif %}
+
+</div>
+{% endtimezone %}

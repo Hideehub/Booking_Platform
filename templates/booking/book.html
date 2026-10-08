@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}Book with {{ business.name }}{% endblock %}
+
+{% block content %}
+  <h1 class="text-2xl font-semibold">{{ business.name }}</h1>
+  <p class="mt-1 text-sm text-slate-500">Times are shown in {{ business.timezone }}.</p>
+  {% include "booking/_flow.html" %}
+{% endblock %}
