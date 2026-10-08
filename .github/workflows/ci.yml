@@ -49,5 +49,10 @@ jobs:
       - name: Type check
         run: mypy .
 
+      # Fails if a model change has no migration. The tests build their database
+      # from the models' migrations, so they wouldn't catch this on their own.
+      - name: Check for missing migrations
+        run: python manage.py makemigrations --check --dry-run
+
       - name: Tests
         run: pytest
