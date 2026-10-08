@@ -37,6 +37,12 @@
       <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.
     </p>
 
+  {% elif state == "refunded" %}
+    <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
+      Your deposit has been refunded.
+      <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.
+    </p>
+
   {% else %}
     <p class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
       This hold has expired. <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.

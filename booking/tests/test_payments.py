@@ -1,6 +1,7 @@
 """Paying the deposit, and the webhook that confirms bookings."""
 
 import json
+import logging
 from datetime import time, timedelta
 from typing import Any
 
@@ -480,3 +481,70 @@ def test_simulate_command_refuses_outside_debug(payment: Payment, settings: Sett
 
     with pytest.raises(CommandError, match="outside DEBUG"):
         call_command("simulate_paystack_webhook", payment.reference)
+
+
+# --- Lapsed holds must not cost a paying customer their slot -------------
+
+
+def test_late_payment_confirms_even_if_a_lapsed_unswept_hold_sits_on_the_slot(
+    client: Client, payment: Payment, make_booking: BookingFactory
+) -> None:
+    """Regression: A's hold lapsed and was expired; B then held the same slot,
+    and B's hold lapsed too but nothing swept it. A's payment arrives.
+    B still looked active to the exclusion constraint, so A used to get
+    refund_due for a slot nobody really holds."""
+    a = payment.booking
+    Booking.objects.filter(pk=a.pk).update(status=Booking.Status.EXPIRED)
+    b = make_booking(
+        SLOT, SLOT + timedelta(minutes=30), customer_name="B", hold_expires_at=at(5, 59)
+    )  # pending_payment, lapsed one minute before the webhook arrives at NOW
+
+    send_webhook(client, build_charge_success(payment))
+
+    refresh(payment, a, b)
+    assert a.status == Booking.Status.CONFIRMED
+    assert payment.status == Payment.Status.SUCCESS
+    assert b.status == Booking.Status.EXPIRED
+
+
+# --- Refunded payments ----------------------------------------------------
+
+
+def test_webhook_redelivered_after_refund_changes_nothing(client: Client, payment: Payment) -> None:
+    Booking.objects.filter(pk=payment.booking_id).update(status=Booking.Status.CANCELLED)
+    send_webhook(client, build_charge_success(payment))  # → refund_due
+    Payment.objects.filter(pk=payment.pk).update(status=Payment.Status.REFUNDED)
+
+    response = send_webhook(client, build_charge_success(payment))
+
+    refresh(payment, payment.booking)
+    assert response.status_code == 200
+    assert payment.status == Payment.Status.REFUNDED
+    assert payment.booking.status == Booking.Status.CANCELLED
+
+
+def test_hold_page_says_the_deposit_was_refunded(client: Client, payment: Payment) -> None:
+    Booking.objects.filter(pk=payment.booking_id).update(status=Booking.Status.EXPIRED)
+    Payment.objects.filter(pk=payment.pk).update(status=Payment.Status.REFUNDED)
+
+    page = client.get(reverse("booking:hold_detail", args=[payment.booking.public_id]))
+
+    assert "Your deposit has been refunded" in page.text
+    assert "will be refunded" not in page.text
+
+
+# --- Logging --------------------------------------------------------------
+
+
+def test_booking_app_logs_at_info_level() -> None:
+    """Without the LOGGING setting, Python's default would drop info lines."""
+    assert logging.getLogger("booking").getEffectiveLevel() == logging.INFO
+
+
+def test_webhook_outcome_is_logged(
+    client: Client, payment: Payment, caplog: pytest.LogCaptureFixture
+) -> None:
+    with caplog.at_level(logging.INFO, logger="booking"):
+        send_webhook(client, build_charge_success(payment))
+
+    assert "Paystack webhook charge.success: confirmed" in caplog.text

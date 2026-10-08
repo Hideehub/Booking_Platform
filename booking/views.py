@@ -217,6 +217,8 @@ def _hold_context(
     payments = list(booking.payments.all())
     if booking.status == Booking.Status.CONFIRMED:
         state = "confirmed"
+    elif any(p.status == Payment.Status.REFUNDED for p in payments):
+        state = "refunded"
     elif any(p.status == Payment.Status.REFUND_DUE for p in payments):
         state = "refund_due"
     elif reference and any(

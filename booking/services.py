@@ -15,7 +15,7 @@ from typing import Any, NamedTuple
 from zoneinfo import ZoneInfo
 
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Q, QuerySet
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -353,7 +353,7 @@ def handle_paystack_event(event: dict[str, Any], *, now: datetime) -> str:
         if payment is None:
             logger.warning("Paystack webhook for unknown reference %r", reference)
             return "unknown_reference"
-        if payment.status in (Payment.Status.SUCCESS, Payment.Status.REFUND_DUE):
+        if payment.status in Payment.PROCESSED_STATUSES:
             return "duplicate"
 
         currency = payment.booking.staff.business.currency
@@ -372,12 +372,12 @@ def handle_paystack_event(event: dict[str, Any], *, now: datetime) -> str:
         booking = Booking.objects.select_for_update().get(pk=payment.booking_id)
         payment.paid_at = paid_at
         payment.raw_payload = event
-        payment.status = _confirm_or_flag_refund(booking)
+        payment.status = _confirm_or_flag_refund(booking, now)
         payment.save(update_fields=["paid_at", "raw_payload", "status"])
         return "confirmed" if payment.status == Payment.Status.SUCCESS else "refund_due"
 
 
-def _confirm_or_flag_refund(booking: Booking) -> str:
+def _confirm_or_flag_refund(booking: Booking, now: datetime) -> str:
     """Confirm a paid booking if we still can; otherwise the money must go back."""
     if booking.status in (Booking.Status.CONFIRMED, Booking.Status.CANCELLED):
         # Already paid by another transaction, or cancelled: don't keep the money.
@@ -385,7 +385,12 @@ def _confirm_or_flag_refund(booking: Booking) -> str:
         return Payment.Status.REFUND_DUE
 
     # Pending, or expired because the customer paid after the hold lapsed.
-    # If someone else has taken the slot since, the exclusion constraint says so.
+    # Lapsed holds still count as active to the exclusion constraint until
+    # their status changes, so clear them first: a lapsed, unswept hold must
+    # not cost a paying customer their slot. (This may also mark *this*
+    # booking expired; we overwrite that just below, on a row we've locked.)
+    expire_stale_holds(booking.staff, now)
+    # If someone else holds the slot for real, the exclusion constraint says so.
     booking.status = Booking.Status.CONFIRMED
     try:
         with transaction.atomic():
@@ -396,3 +401,18 @@ def _confirm_or_flag_refund(booking: Booking) -> str:
         logger.error("Late payment for booking %s: slot was taken, refund due", booking.pk)
         return Payment.Status.REFUND_DUE
     return Payment.Status.SUCCESS
+
+
+def mark_payments_refunded(payments: QuerySet[Payment], *, now: datetime) -> list[Payment]:
+    """Record that refund_due payments were refunded (in Paystack's dashboard).
+
+    Only refund_due payments change; anything else in `payments` is skipped.
+    Returns the payments that were updated, for the caller to audit-log.
+    """
+    with transaction.atomic():
+        due = list(payments.select_for_update().filter(status=Payment.Status.REFUND_DUE))
+        for payment in due:
+            payment.status = Payment.Status.REFUNDED
+            payment.refunded_at = now
+            payment.save(update_fields=["status", "refunded_at"])
+    return due

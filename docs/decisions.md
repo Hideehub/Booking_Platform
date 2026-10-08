@@ -19,9 +19,9 @@ The main design choices behind the booking platform, and their tradeoffs.
 ## 3. Pending holds and expiry
 
 - **Context:** A slot must be reserved while the customer pays, but abandoned checkouts must not block it.
-- **Decision:** Bookings start as `pending_payment` with `hold_expires_at = now + 15 min`, and block slots only while the hold is live. Lapsed holds are marked `expired` just before a new hold is created for that staff member. Services with no deposit are confirmed immediately.
-- **Alternatives rejected:** extending the hold when the customer clicks Pay (it could be extended indefinitely).
-- **Consequences:** The constraint treats a lapsed hold as active until its status changes. A periodic Celery sweep is planned; until then, an unswept lapsed hold can block an admin booking or a late payment for that slot. Holds are not rate-limited yet.
+- **Decision:** Bookings start as `pending_payment` with `hold_expires_at = now + 15 min`, and block slots only while the hold is live. The constraint still sees a lapsed hold as active until its status changes, so every path that writes bookings first marks that staff member's lapsed holds `expired`: new holds, webhook confirmations, and admin saves (in form validation, before the constraint is checked). Services with no deposit are confirmed immediately.
+- **Alternatives rejected:** extending the hold when the customer clicks Pay (it could be extended indefinitely); relying on a periodic sweep alone (a hold can lapse between sweeps).
+- **Consequences:** Correctness doesn't depend on a background job. No periodic sweep exists yet (Celery is planned), so lapsed holds keep `pending_payment` in the database until one of those paths touches that staff member. Holds are not rate-limited yet.
 
 ## 4. UTC storage, local working hours
 
@@ -76,8 +76,8 @@ The main design choices behind the booking platform, and their tradeoffs.
 
 - **Context:** A payment can arrive after its hold lapsed, after the slot went to someone else, or for a booking that is already paid.
 - **Decision:** A late payment confirms the booking if the exclusion constraint allows it. Otherwise, and for already-confirmed or cancelled bookings, the payment is marked `refund_due`.
-- **Alternatives rejected:** automatic refunds through Paystack's API (deferred).
-- **Consequences:** Refunds are made manually in the Paystack dashboard. There is not yet a status to record that a refund was made.
+- **Alternatives rejected:** automatic refunds through Paystack's API (deferred); letting staff edit payment status directly (no audit trail, and any status could be set).
+- **Consequences:** Refunds are made manually in the Paystack dashboard, then recorded with an admin action that moves only `refund_due` payments to `refunded`. It needs the `mark_payment_refunded` permission and is written to the admin history. Webhooks for refunded payments are ignored like any other already-processed payment.
 
 ## 12. Configuration from the environment, failing fast in prod
 

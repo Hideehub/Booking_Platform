@@ -1,4 +1,5 @@
 import uuid
+from typing import TypeAlias
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from django.conf import settings
@@ -135,15 +136,25 @@ class TimeOff(models.Model):
         return f"{self.staff} off {self.start_at:%Y-%m-%d %H:%M}"
 
 
-class Booking(models.Model):
-    class Status(models.TextChoices):
-        PENDING_PAYMENT = "pending_payment"
-        CONFIRMED = "confirmed"
-        CANCELLED = "cancelled"
-        EXPIRED = "expired"
+class BookingStatus(models.TextChoices):
+    PENDING_PAYMENT = "pending_payment"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
 
-    # Bookings in these states occupy the staff member's time.
-    ACTIVE_STATUSES = [Status.PENDING_PAYMENT, Status.CONFIRMED]
+
+# Bookings in these states occupy the staff member's time. Module-level
+# because a model's inner Meta class can't see names in the model's body,
+# and the exclusion constraint below must use this exact list.
+ACTIVE_BOOKING_STATUSES = [BookingStatus.PENDING_PAYMENT, BookingStatus.CONFIRMED]
+
+
+class Booking(models.Model):
+    # Explicit alias so `Booking.Status` still works in type annotations. Not a
+    # `type Status = …` statement: that creates a lazy TypeAliasType, and
+    # Booking.Status.CONFIRMED would fail at runtime.
+    Status: TypeAlias = BookingStatus  # noqa: UP040
+    ACTIVE_STATUSES = ACTIVE_BOOKING_STATUSES
 
     # Unguessable ID for customer-facing URLs. The integer pk counts up, so
     # /bookings/41/ → /bookings/42/ would expose other customers' details.
@@ -171,7 +182,8 @@ class Booking(models.Model):
                 name="booking_end_after_start",
             ),
             models.CheckConstraint(
-                condition=~Q(status="pending_payment") | Q(hold_expires_at__isnull=False),
+                condition=~Q(status=BookingStatus.PENDING_PAYMENT)
+                | Q(hold_expires_at__isnull=False),
                 name="booking_pending_has_hold_expiry",
             ),
             # The double-booking guarantee: no two active bookings for the same
@@ -186,7 +198,7 @@ class Booking(models.Model):
                         RangeOperators.OVERLAPS,
                     ),
                 ],
-                condition=Q(status__in=["pending_payment", "confirmed"]),
+                condition=Q(status__in=ACTIVE_BOOKING_STATUSES),
                 violation_error_message="This staff member already has a booking at that time.",
             ),
         ]
@@ -218,6 +230,11 @@ class Payment(models.Model):
         # Paystack took the money but we couldn't honour the booking (the slot
         # went to someone else, or it was already paid). Refunded by hand for now.
         REFUND_DUE = "refund_due"
+        # A refund_due payment that staff have refunded in the Paystack dashboard.
+        REFUNDED = "refunded"
+
+    # Webhooks for payments in these states have already been handled.
+    PROCESSED_STATUSES = [Status.SUCCESS, Status.REFUND_DUE, Status.REFUNDED]
 
     booking = models.ForeignKey(Booking, on_delete=models.PROTECT, related_name="payments")
     # Unique so a repeated webhook for the same reference can't create a second record.
@@ -227,9 +244,15 @@ class Payment(models.Model):
     # Paystack's checkout page for this transaction; reused if "Pay" is clicked
     # again, so a customer is never sent to two different checkouts.
     authorization_url = models.URLField(max_length=500, blank=True)
+    refunded_at = models.DateTimeField(null=True, blank=True)
     raw_payload = models.JSONField(default=dict, blank=True)
     paid_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # Separate from "change payment" (nobody gets that): recording a refund
+        # is a deliberate, audited action.
+        permissions = [("mark_payment_refunded", "Can mark payments as refunded")]
 
     def __str__(self) -> str:
         return self.reference
