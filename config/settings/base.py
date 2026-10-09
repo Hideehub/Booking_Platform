@@ -66,6 +66,33 @@ DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
 
 REDIS_URL: str = env("REDIS_URL", default="redis://localhost:6379/0")
 
+# --- Celery ---------------------------------------------------------------
+CELERY_BROKER_URL = REDIS_URL
+CELERY_TASK_IGNORE_RESULT = True  # nothing reads task return values
+CELERY_TIMEZONE = "UTC"
+CELERY_BEAT_SCHEDULE = {
+    "expire-stale-holds": {
+        "task": "booking.tasks.expire_stale_holds_task",
+        "schedule": 60.0,
+    },
+    # Backstop for confirmations queued on commit that never ran (broker down,
+    # worker crash) and for bookings confirmed by hand in the admin.
+    "send-pending-confirmations": {
+        "task": "booking.tasks.send_pending_confirmations",
+        "schedule": 60.0,
+    },
+    "send-due-reminders": {
+        "task": "booking.tasks.send_due_reminders",
+        "schedule": 300.0,
+    },
+}
+
+# --- Email ----------------------------------------------------------------
+DEFAULT_FROM_EMAIL: str = env("DEFAULT_FROM_EMAIL", default="Bookings <bookings@localhost>")
+# Emails are sent from tasks, which have no request to build absolute links
+# from. Required; dev.py supplies http://localhost:8000.
+SITE_URL: str = env("SITE_URL").rstrip("/")
+
 # Everything goes to stdout, where Docker and Render collect it. Third-party
 # libraries log warnings and up; our `booking` app also logs info (webhook
 # outcomes, etc.). `booking` has no handler of its own: its records pass up to

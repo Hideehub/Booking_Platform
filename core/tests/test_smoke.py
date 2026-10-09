@@ -30,6 +30,8 @@ def run_prod_check(**overrides: str) -> subprocess.CompletedProcess[str]:
         "SECRET_KEY": "x" * 60 + "-not-a-real-key-but-long-and-random-enough",
         "ALLOWED_HOSTS": "example.com",
         "PAYSTACK_SECRET_KEY": "sk_test_not_real",
+        "SITE_URL": "https://booking.example.com",
+        "EMAIL_URL": "smtp+tls://user:password@smtp.example.com:587",
         "DATABASE_URL": os.environ.get(
             "DATABASE_URL", "postgres://postgres:postgres@localhost:5432/booking"
         ),
@@ -58,3 +60,11 @@ def test_prod_refuses_to_start_with_an_empty_paystack_key(key: str) -> None:
 
     assert result.returncode != 0
     assert "PAYSTACK_SECRET_KEY must be set" in result.stderr
+
+
+@pytest.mark.parametrize("name", ["SITE_URL", "EMAIL_URL"])
+def test_prod_refuses_to_start_without_email_settings(name: str) -> None:
+    result = run_prod_check(**{name: ""})
+
+    assert result.returncode != 0
+    assert f"{name} must be set" in result.stderr

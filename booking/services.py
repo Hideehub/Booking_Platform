@@ -15,11 +15,11 @@ from typing import Any, NamedTuple
 from zoneinfo import ZoneInfo
 
 from django.db import IntegrityError, transaction
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
-from . import paystack
+from . import emails, paystack
 from .models import Booking, Payment, Service, Staff
 
 logger = logging.getLogger(__name__)
@@ -183,17 +183,22 @@ def booking_window(today: date) -> list[date]:
     return [today + timedelta(days=offset) for offset in range(BOOKING_WINDOW_DAYS)]
 
 
+def _lapsed_holds(now: datetime) -> QuerySet[Booking]:
+    return Booking.objects.filter(status=Booking.Status.PENDING_PAYMENT, hold_expires_at__lte=now)
+
+
 def expire_stale_holds(staff: Staff, now: datetime) -> int:
     """Mark this staff member's lapsed pending holds as expired; returns the count.
 
-    Called just before inserting a new hold so a lapsed one can't trip the
+    Called just before writing a booking so a lapsed hold can't trip the
     exclusion constraint while waiting for the periodic sweep.
     """
-    return Booking.objects.filter(
-        staff=staff,
-        status=Booking.Status.PENDING_PAYMENT,
-        hold_expires_at__lte=now,
-    ).update(status=Booking.Status.EXPIRED)
+    return _lapsed_holds(now).filter(staff=staff).update(status=Booking.Status.EXPIRED)
+
+
+def expire_all_stale_holds(now: datetime) -> int:
+    """The periodic sweep: one UPDATE for every lapsed hold; returns the count."""
+    return _lapsed_holds(now).update(status=Booking.Status.EXPIRED)
 
 
 def create_booking_hold(
@@ -242,6 +247,8 @@ def create_booking_hold(
         if _constraint_name(exc) == "booking_no_overlap_per_staff":
             raise SlotUnavailable("Sorry, that time was just taken.") from exc
         raise
+    if booking.status == Booking.Status.CONFIRMED:
+        queue_confirmation_email(booking.pk)
     return booking
 
 
@@ -374,6 +381,8 @@ def handle_paystack_event(event: dict[str, Any], *, now: datetime) -> str:
         payment.raw_payload = event
         payment.status = _confirm_or_flag_refund(booking, now)
         payment.save(update_fields=["paid_at", "raw_payload", "status"])
+        if payment.status == Payment.Status.SUCCESS:
+            queue_confirmation_email(booking.pk)
         return "confirmed" if payment.status == Payment.Status.SUCCESS else "refund_due"
 
 
@@ -416,3 +425,92 @@ def mark_payments_refunded(payments: QuerySet[Payment], *, now: datetime) -> lis
             payment.refunded_at = now
             payment.save(update_fields=["status", "refunded_at"])
     return due
+
+
+# --- Emails ---------------------------------------------------------------
+#
+# Delivery is at-least-once. Each send locks the booking row, skips if the
+# email is already marked sent, sends, then marks it in the same transaction.
+# A crash after sending but before commit re-sends; the opposite order (mark,
+# then send) would instead lose the email for good on a crash.
+
+REMINDER_LEAD = timedelta(hours=24)
+
+
+def queue_confirmation_email(booking_id: int) -> None:
+    """Queue the confirmation email once the current transaction commits.
+
+    on_commit: the task mustn't run before the confirmation is visible, and
+    must not run at all if the transaction rolls back.
+    """
+    # Imported here: tasks.py imports this module.
+    from .tasks import send_confirmation_email
+
+    def enqueue() -> None:
+        try:
+            send_confirmation_email.delay(booking_id)
+        except Exception:
+            # Broker down: don't fail the request that confirmed the booking.
+            # The send_pending_confirmations sweep will pick it up.
+            logger.warning("Couldn't queue confirmation for booking %s", booking_id, exc_info=True)
+
+    transaction.on_commit(enqueue)
+
+
+def bookings_needing_confirmation(now: datetime) -> QuerySet[Booking]:
+    # Future bookings only: a backstop sweep mustn't email people about
+    # appointments that have already happened.
+    return Booking.objects.filter(
+        status=Booking.Status.CONFIRMED, confirmation_sent_at__isnull=True, start_at__gt=now
+    )
+
+
+def bookings_due_for_reminder(now: datetime) -> QuerySet[Booking]:
+    return Booking.objects.filter(
+        status=Booking.Status.CONFIRMED,
+        reminder_sent_at__isnull=True,
+        start_at__gt=now,
+        start_at__lte=now + REMINDER_LEAD,
+        # Booked less than 24h ahead: the confirmation email already did this job.
+        created_at__lte=F("start_at") - REMINDER_LEAD,
+    )
+
+
+def send_booking_confirmation(booking_id: int, *, now: datetime) -> bool:
+    """Send the confirmation email if it's still owed. Returns True if sent."""
+    with transaction.atomic():
+        booking = _lock_for_email(booking_id)
+        if (
+            booking is None
+            or booking.status != Booking.Status.CONFIRMED
+            or booking.confirmation_sent_at is not None
+        ):
+            return False
+        emails.send_confirmation(booking)
+        booking.confirmation_sent_at = now
+        booking.save(update_fields=["confirmation_sent_at"])
+    return True
+
+
+def send_booking_reminder(booking_id: int, *, now: datetime) -> bool:
+    """Send the 24h reminder if it's still owed. Returns True if sent."""
+    with transaction.atomic():
+        booking = _lock_for_email(booking_id)
+        # Re-check under the lock: it may have been cancelled or sent meanwhile.
+        if booking is None or not bookings_due_for_reminder(now).filter(pk=booking.pk).exists():
+            return False
+        emails.send_reminder(booking)
+        booking.reminder_sent_at = now
+        booking.save(update_fields=["reminder_sent_at"])
+    return True
+
+
+def _lock_for_email(booking_id: int) -> Booking | None:
+    # of=("self",): lock only the booking row, not the joined staff, business
+    # and service rows that select_related pulls in.
+    return (
+        Booking.objects.select_for_update(of=("self",))
+        .select_related("staff__business", "service")
+        .filter(pk=booking_id)
+        .first()
+    )

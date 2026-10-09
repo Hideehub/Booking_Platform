@@ -7,13 +7,21 @@ variable crashes at startup instead of running with an insecure fallback.
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F403
-from .base import PAYSTACK_SECRET_KEY, env
+from .base import PAYSTACK_SECRET_KEY, SITE_URL, env
 
 DEBUG = False
 
 # env() accepts PAYSTACK_SECRET_KEY="" (e.g. a copied .env.example); refuse it.
 if not PAYSTACK_SECRET_KEY.strip():
     raise ImproperlyConfigured("PAYSTACK_SECRET_KEY must be set in production.")
+if not SITE_URL:
+    raise ImproperlyConfigured("SITE_URL must be set in production.")
+
+# SMTP settings from one URL, e.g. smtp+tls://user:password@smtp.example.com:587
+if not env("EMAIL_URL", default="").strip():
+    raise ImproperlyConfigured("EMAIL_URL must be set in production.")
+# Sets EMAIL_BACKEND, EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER, EMAIL_USE_TLS, …
+globals().update(env.email_url("EMAIL_URL"))
 
 # Render terminates TLS at its proxy and forwards plain HTTP with this header.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

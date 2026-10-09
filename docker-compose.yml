@@ -19,6 +19,39 @@ services:
       redis:
         condition: service_healthy
 
+  # Runs Celery tasks: emails, and whatever beat schedules.
+  worker:
+    build: .
+    command: celery -A config worker --loglevel=info
+    volumes:
+      - .:/app
+    environment: &app-env
+      DJANGO_SETTINGS_MODULE: config.settings.dev
+      DATABASE_URL: postgres://postgres:postgres@db:5432/booking
+      REDIS_URL: redis://redis:6379/0
+    env_file:
+      - path: .env
+        required: false
+    depends_on: &app-deps
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # The scheduler: sends periodic tasks to the worker. Exactly one must run,
+  # however many workers there are, or every periodic task runs twice.
+  beat:
+    build: .
+    # Schedule state goes to /tmp so it isn't written into the mounted repo.
+    command: celery -A config beat --loglevel=info --schedule /tmp/celerybeat-schedule
+    volumes:
+      - .:/app
+    environment: *app-env
+    env_file:
+      - path: .env
+        required: false
+    depends_on: *app-deps
+
   css:
     build: .
     # Rebuild static/css/app.css whenever a template changes. --watch=always

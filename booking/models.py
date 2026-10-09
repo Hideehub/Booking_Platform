@@ -173,6 +173,10 @@ class Booking(models.Model):
     # don't alter what this customer owes.
     deposit_minor = models.PositiveIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
+    # Set when the email has gone out; null means "not sent yet". The send
+    # functions lock the row and check these, so retries never send twice.
+    confirmation_sent_at = models.DateTimeField(null=True, blank=True)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["start_at"]

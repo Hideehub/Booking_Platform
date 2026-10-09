@@ -1,0 +1,13 @@
+{% load tz %}{% autoescape off %}{% localtime off %}Hi {{ booking.customer_name }},
+
+A reminder of your upcoming booking with {{ business.name }}.
+
+  Service:  {{ booking.service.name }}
+  With:     {{ booking.staff.name }}
+  When:     {{ start|date:"l j F Y" }}, {{ start|time:"H:i" }}–{{ end|time:"H:i" }} ({{ business.timezone }})
+
+View your booking: {{ booking_url }}
+
+See you soon,
+{{ business.name }}
+{% endlocaltime %}{% endautoescape %}

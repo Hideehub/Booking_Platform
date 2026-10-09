@@ -10,8 +10,12 @@ os.environ.setdefault("ALLOWED_HOSTS", "localhost,127.0.0.1,0.0.0.0")
 # Fake key: enough for tests and `simulate_paystack_webhook`. Put a real
 # sk_test_… key in .env to try Paystack's test-mode checkout.
 os.environ.setdefault("PAYSTACK_SECRET_KEY", "sk_test_dev_fake_key")
+os.environ.setdefault("SITE_URL", "http://localhost:8000")
 
 from .base import *  # noqa: E402, F403
+
+# Print emails to the console (the worker's logs) instead of sending them.
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # Fast hashing keeps tests that create users quick.
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]

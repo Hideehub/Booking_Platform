@@ -21,7 +21,7 @@ The main design choices behind the booking platform, and their tradeoffs.
 - **Context:** A slot must be reserved while the customer pays, but abandoned checkouts must not block it.
 - **Decision:** Bookings start as `pending_payment` with `hold_expires_at = now + 15 min`, and block slots only while the hold is live. The constraint still sees a lapsed hold as active until its status changes, so every path that writes bookings first marks that staff member's lapsed holds `expired`: new holds, webhook confirmations, and admin saves (in form validation, before the constraint is checked). Services with no deposit are confirmed immediately.
 - **Alternatives rejected:** extending the hold when the customer clicks Pay (it could be extended indefinitely); relying on a periodic sweep alone (a hold can lapse between sweeps).
-- **Consequences:** Correctness doesn't depend on a background job. No periodic sweep exists yet (Celery is planned), so lapsed holds keep `pending_payment` in the database until one of those paths touches that staff member. Holds are not rate-limited yet.
+- **Consequences:** Correctness doesn't depend on a background job. A Celery beat task also expires all lapsed holds every minute, so they don't linger as `pending_payment` in the database. Holds are not rate-limited yet.
 
 ## 4. UTC storage, local working hours
 
@@ -85,3 +85,10 @@ The main design choices behind the booking platform, and their tradeoffs.
 - **Decision:** `config/settings/{base,dev,prod}.py`, chosen by `DJANGO_SETTINGS_MODULE`; values come from the environment via `django-environ`. `SECRET_KEY`, `DATABASE_URL` and `PAYSTACK_SECRET_KEY` have no defaults outside dev.
 - **Alternatives rejected:** a single settings file with `if DEBUG:` branches; committed `.env` files.
 - **Consequences:** A misconfigured deploy fails at startup instead of running insecurely. A test runs `check --deploy` against prod settings.
+
+## 13. Booking emails: queued on commit, swept as a backstop, sent at least once
+
+- **Context:** Customers get a confirmation email and a reminder 24 hours before. Celery tasks can run more than once, and the broker can be down when a booking is confirmed.
+- **Decision:** On confirmation, the email task is queued with `transaction.on_commit`; a failure to queue is logged, not raised. A beat task every minute sends any confirmation still owed for an upcoming booking, and another every 5 minutes sends due reminders. Each send locks the booking row, skips if `confirmation_sent_at`/`reminder_sent_at` is set, sends, then sets it in the same transaction.
+- **Alternatives rejected:** marking before sending (a crash after marking loses the email for good); queueing without `on_commit` (the task could run before the confirmation is visible, or for a rolled-back one); `worker -B` (a second worker would schedule every task twice; beat runs as its own single service).
+- **Consequences:** Delivery is at least once: a crash between sending and committing re-sends. Bookings made less than 24 hours ahead get no reminder. On first deploy, confirmed upcoming bookings that predate this feature receive a confirmation email.
