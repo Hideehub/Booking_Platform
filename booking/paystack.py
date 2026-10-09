@@ -16,6 +16,9 @@ from django.conf import settings
 
 API_BASE = "https://api.paystack.co"
 TIMEOUT_SECONDS = 10
+# Paystack's API sits behind Cloudflare, which answers 403 to urllib's default
+# "Python-urllib/3.x" User-Agent before the request reaches Paystack.
+USER_AGENT = "booking-platform/1.0"
 
 
 class PaystackError(Exception):
@@ -62,6 +65,7 @@ def _post(path: str, payload: dict[str, Any]) -> dict[str, Any]:
         headers={
             "Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}",
             "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
         },
     )
     try:

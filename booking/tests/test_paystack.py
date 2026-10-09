@@ -65,6 +65,9 @@ def test_initialize_sends_the_right_request(
     assert fake.request.full_url == "https://api.paystack.co/transaction/initialize"
     assert fake.request.get_method() == "POST"
     assert fake.request.get_header("Authorization") == "Bearer sk_test_123"
+    # Not urllib's default "Python-urllib/3.x", which Cloudflare blocks with a 403.
+    assert fake.request.get_header("User-agent") == paystack.USER_AGENT
+    assert "Python-urllib" not in paystack.USER_AGENT
     assert fake.timeout == paystack.TIMEOUT_SECONDS
     assert isinstance(fake.request.data, bytes)
     assert json.loads(fake.request.data) == {
