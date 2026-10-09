@@ -15,3 +15,12 @@ def money(amount_minor: int, currency: str) -> str:
 def minutes(duration: timedelta) -> str:
     """timedelta(minutes=90) → "90 min"."""
     return f"{int(duration.total_seconds() // 60)} min"
+
+
+@register.filter
+def initials(name: str) -> str:
+    """Avatar initials: "Ada Obi" → "AO", "Ada" → "A".
+
+    Staff are shown as initials, never stock faces standing in for real people.
+    """
+    return "".join(part[0] for part in name.split()[:2]).upper()

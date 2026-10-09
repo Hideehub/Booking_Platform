@@ -1,29 +1,44 @@
 {% extends "base.html" %}
 {% load tz booking_extras %}
 
-{% block title %}Your booking with {{ business.name }}{% endblock %}
+{% block title %}Your booking with {{ business.name }} · Booking Platform{% endblock %}
 
 {% block content %}
 {% timezone business.timezone %}
-  <h1 class="text-2xl font-semibold">{{ business.name }}</h1>
+  <div class="mx-auto max-w-2xl px-4 py-12 sm:px-8 sm:py-16">
+    <p class="text-xs font-semibold uppercase tracking-[0.25em] text-gold-deep">Your booking</p>
+    <h1 class="mt-3 text-4xl font-semibold sm:text-5xl">{{ business.name }}</h1>
 
-  <div class="mt-6 rounded-lg border border-slate-200 bg-white p-5">
-    <dl class="grid grid-cols-3 gap-y-2 text-sm">
-      <dt class="text-slate-500">Service</dt><dd class="col-span-2">{{ booking.service.name }}</dd>
-      <dt class="text-slate-500">With</dt><dd class="col-span-2">{{ booking.staff.name }}</dd>
-      <dt class="text-slate-500">When</dt>
-      <dd class="col-span-2">{{ booking.start_at|date:"l j F Y" }}, {{ booking.start_at|time:"H:i" }}–{{ booking.end_at|time:"H:i" }} ({{ business.timezone }})</dd>
-      <dt class="text-slate-500">Name</dt><dd class="col-span-2">{{ booking.customer_name }}</dd>
-      {% if booking.deposit_minor %}
-        <dt class="text-slate-500">Deposit</dt><dd class="col-span-2">{{ booking.deposit_minor|money:business.currency }}</dd>
-      {% endif %}
-    </dl>
+    <article class="mt-8 overflow-hidden rounded-3xl bg-white shadow-xl shadow-espresso/10 ring-1 ring-linen">
+      {# Receipt-style summary. A thin gold rule echoes the brand. #}
+      <div aria-hidden="true" class="h-1.5 bg-linear-to-r from-gold-deep via-gold to-gold-deep"></div>
+      <div class="p-6 sm:p-10">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="font-display text-2xl font-semibold">{{ booking.service.name }}</p>
+            <p class="mt-1 text-cocoa">with {{ booking.staff.name }}</p>
+          </div>
+          <span aria-hidden="true" class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-espresso font-display font-semibold text-ivory">{{ booking.staff.name|initials }}</span>
+        </div>
+
+        <dl class="mt-8 grid gap-x-6 gap-y-4 border-t border-dashed border-linen pt-6 text-sm sm:grid-cols-[8rem_1fr]">
+          <dt class="text-taupe">When</dt>
+          <dd class="font-medium text-espresso">{{ booking.start_at|date:"l j F Y" }}, {{ booking.start_at|time:"H:i" }}–{{ booking.end_at|time:"H:i" }} <span class="font-normal text-taupe">({{ business.timezone }})</span></dd>
+          <dt class="text-taupe">Name</dt>
+          <dd class="font-medium text-espresso">{{ booking.customer_name }}</dd>
+          {% if booking.deposit_minor %}
+            <dt class="text-taupe">Deposit</dt>
+            <dd class="font-medium text-espresso">{{ booking.deposit_minor|money:business.currency }}</dd>
+          {% endif %}
+        </dl>
+
+        {% if error %}
+          <p role="alert" class="mt-8 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">{{ error }}</p>
+        {% endif %}
+
+        {% include "booking/_hold_status.html" %}
+      </div>
+    </article>
   </div>
-
-  {% if error %}
-    <p role="alert" class="mt-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{{ error }}</p>
-  {% endif %}
-
-  {% include "booking/_hold_status.html" %}
 {% endtimezone %}
 {% endblock %}

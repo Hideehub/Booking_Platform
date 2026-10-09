@@ -1,15 +1,40 @@
 {% load static %}<!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Book an appointment{% endblock %}</title>
+  <title>{% block title %}Booking Platform{% endblock %}</title>
+  <meta name="description" content="{% block description %}Book salon and clinic appointments online and secure your slot with a deposit.{% endblock %}">
+  <meta name="theme-color" content="#faf7f2">
+  {# Start the font downloads before the CSS that needs them is parsed. #}
+  <link rel="preload" href="{% static 'fonts/inter-latin-var.woff2' %}" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="{% static 'fonts/playfair-display-latin-var.woff2' %}" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
   <script src="{% static 'js/htmx.min.js' %}" defer></script>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-900 antialiased">
-  <main class="mx-auto max-w-2xl px-4 py-10">
+<body class="flex min-h-full flex-col">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-espresso focus:px-4 focus:py-2 focus:text-ivory">Skip to content</a>
+
+  <header class="sticky top-0 z-30 border-b border-linen/70 bg-ivory/85 backdrop-blur">
+    <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+      <a href="{% url 'booking:home' %}" class="font-display text-xl font-semibold tracking-tight text-espresso sm:text-2xl">
+        Booking <span class="italic text-gold-deep">Platform</span>
+      </a>
+      <a href="{% url 'booking:home' %}#businesses" class="rounded-full border border-espresso/15 px-4 py-2 text-sm font-medium text-cocoa transition hover:border-espresso/40 hover:text-espresso">
+        Book now
+      </a>
+    </div>
+  </header>
+
+  <main id="main" class="flex-1">
     {% block content %}{% endblock %}
   </main>
+
+  <footer class="border-t border-linen bg-sand/60">
+    <div class="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-10 text-sm text-taupe sm:flex-row sm:items-center sm:justify-between sm:px-8">
+      <p><span class="font-display text-base text-espresso">Booking <span class="italic text-gold-deep">Platform</span></span> · Appointments made simple.</p>
+      <p>Deposits are processed securely by Paystack.</p>
+    </div>
+  </footer>
 </body>
 </html>

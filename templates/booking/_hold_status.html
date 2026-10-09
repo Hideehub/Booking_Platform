@@ -4,49 +4,58 @@
   Every other state renders without hx-trigger, which stops the polling.
 {% endcomment %}
 {% timezone business.timezone %}
-<div id="hold-status" class="mt-6"
+<div id="hold-status" class="mt-8" aria-live="polite"
      {% if state == "confirming" %}
        hx-get="{% url 'booking:hold_status' booking.public_id %}?reference={{ reference|urlencode }}"
        hx-trigger="every 3s" hx-swap="outerHTML"
      {% endif %}>
 
   {% if state == "pay" %}
-    <p class="text-sm text-slate-700">
-      We're holding this time until <strong>{{ booking.hold_expires_at|time:"H:i" }}</strong>.
+    <span class="inline-flex items-center gap-2 rounded-full bg-gold-soft px-3 py-1 text-xs font-semibold uppercase tracking-wider text-gold-deep">
+      <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full bg-gold-deep"></span> On hold
+    </span>
+    <p class="mt-4 text-cocoa">
+      We're holding this time until <strong class="text-espresso">{{ booking.hold_expires_at|time:"H:i" }}</strong>.
       Pay the deposit before then to confirm.
     </p>
-    <form method="post" action="{% url 'booking:pay' booking.public_id %}" class="mt-4">
+    <form method="post" action="{% url 'booking:pay' booking.public_id %}" class="mt-6">
       {% csrf_token %}
-      <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700">
+      <button type="submit" class="w-full rounded-full bg-espresso px-6 py-4 font-semibold text-ivory shadow-lg shadow-espresso/15 transition hover:bg-cocoa">
         Pay deposit
       </button>
     </form>
+    <p class="mt-3 text-center text-xs text-taupe">You'll be taken to Paystack's secure checkout.</p>
 
   {% elif state == "confirming" %}
-    <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
-      Payment received — confirming your booking…
-    </p>
+    <span class="inline-flex items-center gap-2 rounded-full bg-sand px-3 py-1 text-xs font-semibold uppercase tracking-wider text-cocoa">
+      <span aria-hidden="true" class="h-1.5 w-1.5 animate-pulse rounded-full bg-cocoa"></span> Confirming
+    </span>
+    <p class="mt-4 text-cocoa">Payment received — confirming your booking…</p>
 
   {% elif state == "confirmed" %}
-    <p class="rounded-lg bg-green-50 p-3 text-sm text-green-800">Your booking is confirmed. See you then!</p>
+    <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-emerald-800">
+      <span aria-hidden="true">✓</span> Confirmed
+    </span>
+    <p class="mt-4 text-lg text-espresso">Your booking is confirmed. See you then!</p>
+    <p class="mt-1 text-sm text-taupe">A confirmation email is on its way to {{ booking.customer_email }}.</p>
 
   {% elif state == "refund_due" %}
-    <p class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+    <span class="inline-flex items-center rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-amber-800">Refund due</span>
+    <p class="mt-4 text-cocoa">
       We received your payment, but this time was booked by someone else before it arrived.
       Your deposit will be refunded.
-      <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.
     </p>
+    <a class="mt-6 inline-block rounded-full border border-espresso/20 px-5 py-2.5 font-medium transition hover:border-espresso" href="{% url 'booking:book' business.slug %}">Choose another time</a>
 
   {% elif state == "refunded" %}
-    <p class="rounded-lg bg-slate-100 p-3 text-sm text-slate-700">
-      Your deposit has been refunded.
-      <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.
-    </p>
+    <span class="inline-flex items-center rounded-full bg-sand px-3 py-1 text-xs font-semibold uppercase tracking-wider text-cocoa">Refunded</span>
+    <p class="mt-4 text-cocoa">Your deposit has been refunded.</p>
+    <a class="mt-6 inline-block rounded-full border border-espresso/20 px-5 py-2.5 font-medium transition hover:border-espresso" href="{% url 'booking:book' business.slug %}">Choose another time</a>
 
   {% else %}
-    <p class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-      This hold has expired. <a class="underline" href="{% url 'booking:book' business.slug %}">Choose another time</a>.
-    </p>
+    <span class="inline-flex items-center rounded-full bg-sand px-3 py-1 text-xs font-semibold uppercase tracking-wider text-taupe">Expired</span>
+    <p class="mt-4 text-cocoa">This hold has expired.</p>
+    <a class="mt-6 inline-block rounded-full bg-espresso px-5 py-2.5 font-medium text-ivory transition hover:bg-cocoa" href="{% url 'booking:book' business.slug %}">Choose another time</a>
   {% endif %}
 </div>
 {% endtimezone %}

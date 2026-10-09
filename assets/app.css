@@ -2,3 +2,66 @@
    files) for class names and writes only the CSS that's used to
    static/css/app.css. */
 @import "tailwindcss";
+
+/* Self-hosted variable fonts (one file covers every weight). Licences:
+   static/fonts/OFL-*.txt. URLs are relative to the built static/css/app.css. */
+@font-face {
+  font-family: "Inter";
+  src: url("../fonts/inter-latin-var.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Playfair Display";
+  src: url("../fonts/playfair-display-latin-var.woff2") format("woff2");
+  font-weight: 500 700;
+  font-display: swap;
+}
+
+/* "Soft luxe": warm ivory, espresso text, champagne-gold accent.
+   Each colour becomes Tailwind utilities, e.g. bg-ivory, text-espresso. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Playfair Display", ui-serif, Georgia, serif;
+
+  --color-ivory: #faf7f2;
+  --color-sand: #f1ebe1;
+  --color-linen: #e6ddcf;
+  --color-espresso: #2b211c;
+  --color-cocoa: #5c4a3f;
+  /* Secondary text. Darkest shade that still reads as taupe while passing
+     WCAG AA (4.5:1) on ivory, white and sand. */
+  --color-taupe: #786759;
+  /* Gold is decoration only (lines, ornaments) or text on espresso: on
+     ivory it's 2.9:1 and fails. gold-deep (4.7:1 on ivory; white text on it
+     5.0:1) is for text and buttons on light backgrounds. */
+  --color-gold: #b08d57;
+  --color-gold-deep: #8a6a3a;
+  --color-gold-soft: #f3eadb;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    @apply bg-ivory font-sans text-espresso;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display tracking-tight;
+  }
+  /* Visible keyboard focus everywhere, in the accent colour. */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-gold-deep;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+    }
+  }
+}

@@ -5,6 +5,7 @@ from . import views
 app_name = "booking"
 
 urlpatterns = [
+    path("", views.home, name="home"),
     path("b/<slug:slug>/", views.book, name="book"),
     path("b/<slug:slug>/hold/", views.create_hold, name="create_hold"),
     path("bookings/<uuid:public_id>/", views.hold_detail, name="hold_detail"),

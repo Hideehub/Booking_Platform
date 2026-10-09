@@ -1,114 +1,147 @@
-{% load tz booking_extras %}
+{% load static tz booking_extras %}
 {% comment %}
   The whole flow is one fragment. hx-boost turns its links and form into
   HTMX requests that replace #flow (and push the URL); without JavaScript
   they are ordinary links and a normal form POST.
 {% endcomment %}
 {% timezone business.timezone %}
-<div id="flow" class="mt-8 space-y-8" hx-boost="true" hx-target="#flow" hx-swap="outerHTML">
+<div id="flow" hx-boost="true" hx-target="#flow" hx-swap="outerHTML">
+
+  {# --- Progress --------------------------------------------------------- #}
+  <ol class="mb-10 flex items-center gap-2" aria-label="Booking progress">
+    {% for label in steps %}
+      <li class="flex flex-1 flex-col gap-2" {% if forloop.counter == step %}aria-current="step"{% endif %}>
+        <span class="h-1 rounded-full {% if forloop.counter < step %}bg-gold-deep{% elif forloop.counter == step %}bg-espresso{% else %}bg-linen{% endif %}"></span>
+        <span class="hidden text-xs font-medium sm:block {% if forloop.counter <= step %}text-espresso{% else %}text-taupe{% endif %}">{{ label }}</span>
+      </li>
+    {% endfor %}
+  </ol>
 
   {% if error %}
     {# At the top so it shows even when the rejected date hides later steps. #}
-    <p role="alert" class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{{ error }}</p>
+    <p role="alert" class="mb-8 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800">{{ error }}</p>
   {% endif %}
 
-  <section>
-    <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">1. Service</h2>
-    <div class="mt-3 grid gap-2">
-      {% for choice in services %}
-        <a href="{{ choice.url }}"
-           class="flex items-center justify-between rounded-lg border p-3 {% if choice.selected %}border-indigo-600 bg-indigo-50{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
-          <span class="font-medium">{{ choice.value.name }}</span>
-          <span class="text-sm text-slate-500">
-            {{ choice.value.duration|minutes }} · deposit {{ choice.value.deposit_minor|money:business.currency }}
-          </span>
-        </a>
-      {% empty %}
-        <p class="text-slate-500">No services are available to book yet.</p>
-      {% endfor %}
-    </div>
-  </section>
+  <div class="space-y-12">
 
-  {% if service %}
+    {# --- 1. Service ------------------------------------------------------ #}
     <section>
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">2. With</h2>
-      <div class="mt-3 flex flex-wrap gap-2">
-        {% for choice in staff_choices %}
-          <a href="{{ choice.url }}"
-             class="rounded-full border px-4 py-2 {% if choice.selected %}border-indigo-600 bg-indigo-600 text-white{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
-            {{ choice.value.name }}
-          </a>
-        {% empty %}
-          <p class="text-slate-500">Nobody offers this service right now.</p>
-        {% endfor %}
-      </div>
-    </section>
-  {% endif %}
-
-  {% if staff %}
-    <section>
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">3. Date</h2>
-      <div class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-7">
-        {% for choice in day_choices %}
-          {% if choice.disabled %}
-            <span class="rounded-lg border border-slate-100 bg-slate-100 p-2 text-center text-sm text-slate-400" title="Not working this day">
-              {{ choice.value|date:"D" }}<br>{{ choice.value|date:"j M" }}
+      <h2 class="text-2xl font-semibold">Choose a service</h2>
+      <div class="mt-5 grid gap-3 sm:grid-cols-2">
+        {% for choice in services %}
+          <a href="{{ choice.url }}" {% if choice.selected %}aria-current="true"{% endif %}
+             class="group flex items-center gap-4 rounded-2xl border p-3 transition {% if choice.selected %}border-gold-deep bg-gold-soft ring-1 ring-gold-deep{% else %}border-linen bg-ivory hover:border-taupe hover:bg-white{% endif %}">
+            {% if choice.photo %}
+              <img src="{% static choice.photo.path %}" alt="" loading="lazy" width="900" height="600"
+                   class="h-16 w-16 shrink-0 rounded-xl object-cover">
+            {% endif %}
+            <span class="min-w-0">
+              <span class="block font-semibold text-espresso">{{ choice.value.name }}</span>
+              <span class="mt-0.5 block text-sm text-taupe">
+                {{ choice.value.duration|minutes }}{% if choice.value.deposit_minor %} · deposit {{ choice.value.deposit_minor|money:business.currency }}{% else %} · no deposit{% endif %}
+              </span>
             </span>
-          {% else %}
-            <a href="{{ choice.url }}"
-               class="rounded-lg border p-2 text-center text-sm {% if choice.selected %}border-indigo-600 bg-indigo-600 text-white{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
-              {{ choice.value|date:"D" }}<br>{{ choice.value|date:"j M" }}
-            </a>
-          {% endif %}
-        {% endfor %}
-      </div>
-    </section>
-  {% endif %}
-
-  {% if day %}
-    <section>
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">4. Time on {{ day|date:"l j F" }}</h2>
-      <div class="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-        {% for choice in slot_choices %}
-          <a href="{{ choice.url }}"
-             class="rounded-lg border p-2 text-center text-sm {% if choice.selected %}border-indigo-600 bg-indigo-600 text-white{% else %}border-slate-200 bg-white hover:border-slate-400{% endif %}">
-            {{ choice.value|time:"H:i" }}
           </a>
         {% empty %}
-          <p class="col-span-full text-slate-500">No times available on this day.</p>
+          <p class="text-taupe">No services are available to book yet.</p>
         {% endfor %}
       </div>
     </section>
-  {% endif %}
 
-  {% if form %}
-    <section>
-      <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">5. Your details</h2>
-      <p class="mt-1 text-sm text-slate-600">
-        {{ service.name }} with {{ staff.name }}, {{ start|date:"l j F" }} at {{ start|time:"H:i" }}.
-        {% if service.deposit_minor %}We'll hold this time for 15 minutes while you pay the deposit.{% endif %}
-      </p>
-      <form method="post" action="{% url 'booking:create_hold' business.slug %}" hx-push-url="false" class="mt-4 space-y-4 rounded-lg border border-slate-200 bg-white p-4">
-        {% csrf_token %}
-        {{ form.service }}{{ form.staff }}{{ form.start }}
-        {% if form.non_field_errors or form.start.errors %}
-          <p role="alert" class="text-sm text-red-700">{{ form.non_field_errors|join:" " }} {{ form.start.errors|join:" " }}</p>
-        {% endif %}
-        {% for field in form.visible_fields %}
-          <div>
-            <label for="{{ field.id_for_label }}" class="block text-sm font-medium">{{ field.label }}</label>
-            <input type="{{ field.field.widget.input_type }}" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
-                   value="{{ field.value|default_if_none:'' }}" {% if field.field.required %}required{% endif %}
-                   class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 focus:border-indigo-600 focus:outline-none">
-            {% for error in field.errors %}<p class="mt-1 text-sm text-red-700">{{ error }}</p>{% endfor %}
-          </div>
-        {% endfor %}
-        <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700">
-          {% if service.deposit_minor %}Hold this time{% else %}Book this time{% endif %}
-        </button>
-      </form>
-    </section>
-  {% endif %}
+    {# --- 2. Staff -------------------------------------------------------- #}
+    {% if service %}
+      <section>
+        <h2 class="text-2xl font-semibold">Who would you like to see?</h2>
+        <div class="mt-5 flex flex-wrap gap-3">
+          {% for choice in staff_choices %}
+            <a href="{{ choice.url }}" {% if choice.selected %}aria-current="true"{% endif %}
+               class="flex items-center gap-3 rounded-full border py-2 pl-2 pr-5 transition {% if choice.selected %}border-gold-deep bg-gold-soft ring-1 ring-gold-deep{% else %}border-linen bg-ivory hover:border-taupe hover:bg-white{% endif %}">
+              <span aria-hidden="true" class="flex h-10 w-10 items-center justify-center rounded-full font-display text-sm font-semibold {% if choice.selected %}bg-gold-deep text-white{% else %}bg-espresso text-ivory{% endif %}">{{ choice.value.name|initials }}</span>
+              <span class="font-medium">{{ choice.value.name }}</span>
+            </a>
+          {% empty %}
+            <p class="text-taupe">Nobody offers this service right now.</p>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
 
+    {# --- 3. Date --------------------------------------------------------- #}
+    {% if staff %}
+      <section>
+        <h2 class="text-2xl font-semibold">Pick a date</h2>
+        <div class="mt-5 grid grid-cols-4 gap-2 sm:grid-cols-7">
+          {% for choice in day_choices %}
+            {% if choice.disabled %}
+              <span class="flex flex-col items-center rounded-2xl border border-dashed border-linen px-1 py-3 text-taupe/70" title="Not working this day">
+                <span class="text-[11px] font-semibold uppercase tracking-wider">{{ choice.value|date:"D" }}</span>
+                <span class="font-display text-2xl">{{ choice.value|date:"j" }}</span>
+                <span class="text-[11px]">{{ choice.value|date:"M" }}</span>
+              </span>
+            {% else %}
+              <a href="{{ choice.url }}" {% if choice.selected %}aria-current="date"{% endif %}
+                 class="flex flex-col items-center rounded-2xl border px-1 py-3 transition {% if choice.selected %}border-espresso bg-espresso text-ivory{% else %}border-linen bg-ivory text-espresso hover:border-taupe hover:bg-white{% endif %}">
+                <span class="text-[11px] font-semibold uppercase tracking-wider {% if not choice.selected %}text-taupe{% endif %}">{{ choice.value|date:"D" }}</span>
+                <span class="font-display text-2xl">{{ choice.value|date:"j" }}</span>
+                <span class="text-[11px] {% if not choice.selected %}text-taupe{% endif %}">{{ choice.value|date:"M" }}</span>
+              </a>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    {# --- 4. Time --------------------------------------------------------- #}
+    {% if day %}
+      <section>
+        <h2 class="text-2xl font-semibold">Choose a time <span class="font-sans text-base font-normal text-taupe">· {{ day|date:"l j F" }}</span></h2>
+        <div class="mt-5 grid grid-cols-3 gap-2 sm:grid-cols-5">
+          {% for choice in slot_choices %}
+            <a href="{{ choice.url }}" {% if choice.selected %}aria-current="time"{% endif %}
+               class="rounded-xl border py-2.5 text-center font-medium tabular-nums transition {% if choice.selected %}border-espresso bg-espresso text-ivory{% else %}border-linen bg-ivory hover:border-taupe hover:bg-white{% endif %}">
+              {{ choice.value|time:"H:i" }}
+            </a>
+          {% empty %}
+            <p class="col-span-full rounded-2xl bg-sand/60 px-5 py-4 text-cocoa">No times available on this day. Try another date.</p>
+          {% endfor %}
+        </div>
+      </section>
+    {% endif %}
+
+    {# --- 5. Details ------------------------------------------------------ #}
+    {% if form %}
+      <section>
+        <h2 class="text-2xl font-semibold">Your details</h2>
+        <div class="mt-5 rounded-2xl bg-sand/60 px-5 py-4">
+          <p class="font-medium">{{ service.name }} with {{ staff.name }}</p>
+          <p class="text-cocoa">{{ start|date:"l j F" }} at {{ start|time:"H:i" }}</p>
+          {% if service.deposit_minor %}
+            <p class="mt-2 text-sm text-taupe">We'll hold this time for 15 minutes while you pay the {{ service.deposit_minor|money:business.currency }} deposit.</p>
+          {% endif %}
+        </div>
+        <form method="post" action="{% url 'booking:create_hold' business.slug %}" hx-push-url="false" class="mt-6 space-y-5">
+          {% csrf_token %}
+          {{ form.service }}{{ form.staff }}{{ form.start }}
+          {% if form.non_field_errors or form.start.errors %}
+            <p role="alert" class="text-sm text-red-700">{{ form.non_field_errors|join:" " }} {{ form.start.errors|join:" " }}</p>
+          {% endif %}
+          {% for field in form.visible_fields %}
+            <div>
+              <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-cocoa">{{ field.label }}</label>
+              <input type="{{ field.field.widget.input_type }}" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                     value="{{ field.value|default_if_none:'' }}" {% if field.field.required %}required{% endif %}
+                     {% if field.errors %}aria-invalid="true"{% endif %}
+                     class="mt-1.5 block w-full rounded-xl border bg-ivory px-4 py-3 text-espresso placeholder:text-taupe focus:bg-white focus:outline-none focus:ring-4 {% if field.errors %}border-red-400 focus:ring-red-100{% else %}border-linen focus:border-gold-deep focus:ring-gold-soft{% endif %}">
+              {% for error in field.errors %}<p class="mt-1.5 text-sm text-red-700">{{ error }}</p>{% endfor %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="w-full rounded-full bg-espresso px-6 py-4 font-semibold text-ivory shadow-lg shadow-espresso/15 transition hover:bg-cocoa">
+            {% if service.deposit_minor %}Hold this time{% else %}Book this time{% endif %}
+          </button>
+        </form>
+      </section>
+    {% endif %}
+
+  </div>
 </div>
 {% endtimezone %}

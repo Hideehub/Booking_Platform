@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
+from django.db.models import Count, Q
 from django.http import HttpRequest, HttpResponse, QueryDict
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -23,6 +24,7 @@ from django.utils.cache import patch_vary_headers
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
+from . import imagery
 from .forms import HoldForm, format_start, parse_start
 from .models import Booking, Business, Payment
 from .paystack import PaystackError, verify_signature
@@ -52,6 +54,11 @@ class Choice:
     url: str
     selected: bool
     disabled: bool = False
+    photo: imagery.Photo | None = None
+
+
+# Labels for the progress bar; the flow's "step" is the 1-based current one.
+STEPS = ["Service", "With", "Date", "Time", "Details"]
 
 
 def _int_or_none(value: str | None) -> int | None:
@@ -76,14 +83,23 @@ def _build_flow(business: Business, params: QueryDict, now: datetime) -> dict[st
     def url(**query: str) -> str:
         return f"{base}?{urlencode(query)}"
 
-    ctx: dict[str, Any] = {"business": business}
+    ctx: dict[str, Any] = {
+        "business": business,
+        "steps": STEPS,
+        "step": 1,
+        "cover": imagery.COVER,
+    }
 
     services = list(business.services.filter(is_active=True).order_by("name"))
     service = next((s for s in services if s.pk == _int_or_none(params.get("service"))), None)
     ctx["service"] = service
-    ctx["services"] = [Choice(s, url(service=str(s.pk)), selected=s == service) for s in services]
+    ctx["services"] = [
+        Choice(s, url(service=str(s.pk)), selected=s == service, photo=imagery.for_index(i))
+        for i, s in enumerate(services)
+    ]
     if service is None:
         return ctx
+    ctx["step"] = 2
 
     staff_members = list(service.staff.filter(is_active=True, business=business).order_by("name"))
     staff = next((m for m in staff_members if m.pk == _int_or_none(params.get("staff"))), None)
@@ -94,6 +110,7 @@ def _build_flow(business: Business, params: QueryDict, now: datetime) -> dict[st
     ]
     if staff is None:
         return ctx
+    ctx["step"] = 3
 
     tz = ZoneInfo(business.timezone)
     working_weekdays = set(staff.working_hours.values_list("weekday", flat=True))
@@ -112,6 +129,7 @@ def _build_flow(business: Business, params: QueryDict, now: datetime) -> dict[st
     ]
     if day is None:
         return ctx
+    ctx["step"] = 4
 
     slots = get_available_slots(staff, service, day, now)
     start = parse_start(params.get("start"))
@@ -131,6 +149,7 @@ def _build_flow(business: Business, params: QueryDict, now: datetime) -> dict[st
         for s in slots
     ]
     if start is not None:
+        ctx["step"] = 5
         ctx["form"] = HoldForm(
             business=business,
             initial={"service": service.pk, "staff": staff.pk, "start": format_start(start)},
@@ -150,6 +169,23 @@ def _render_flow(request: HttpRequest, ctx: dict[str, Any]) -> HttpResponse:
     # Same URL, two different bodies: tell caches to key on the header.
     patch_vary_headers(response, ["HX-Request"])
     return response
+
+
+@require_GET
+def home(request: HttpRequest) -> HttpResponse:
+    # Only businesses a customer could actually book with.
+    businesses = (
+        Business.objects.annotate(
+            active_services=Count("services", filter=Q(services__is_active=True))
+        )
+        .filter(active_services__gt=0)
+        .order_by("name")
+    )
+    return render(
+        request,
+        "booking/home.html",
+        {"businesses": businesses, "hero": imagery.HERO, "gallery": imagery.GALLERY},
+    )
 
 
 @require_GET
