@@ -1,0 +1,25 @@
+{% extends "dashboard/layout.html" %}
+{% load booking_extras %}
+
+{% block page_title %}Cancel booking{% endblock %}
+
+{% block dashboard %}
+  <a href="{% url 'dashboard:bookings' business.slug %}" class="text-sm text-taupe hover:text-espresso">← Bookings</a>
+  <div class="mt-4 max-w-xl rounded-3xl bg-white p-6 ring-1 ring-linen sm:p-8">
+    <h2 class="text-2xl font-semibold">Cancel this booking?</h2>
+    <dl class="mt-6 grid gap-y-2 text-sm sm:grid-cols-[7rem_1fr]">
+      <dt class="text-taupe">Customer</dt><dd class="font-medium">{{ booking.customer_name }} · {{ booking.customer_email }}</dd>
+      <dt class="text-taupe">Service</dt><dd class="font-medium">{{ booking.service.name }} with {{ booking.staff.name }}</dd>
+      <dt class="text-taupe">When</dt><dd class="font-medium">{{ booking.start_at|date:"l j F" }}, {{ booking.start_at|time:"H:i" }}–{{ booking.end_at|time:"H:i" }}</dd>
+    </dl>
+    <p class="mt-6 rounded-2xl bg-sand/60 px-4 py-3 text-sm text-cocoa">
+      The customer will be emailed and the time becomes bookable again.
+      {% if deposit_paid %}<strong>Their {{ booking.deposit_minor|money:business.currency }} deposit will be marked for refund.</strong>{% endif %}
+    </p>
+    <form method="post" class="mt-6 flex flex-wrap gap-3">
+      {% csrf_token %}
+      <button type="submit" class="rounded-full bg-red-700 px-6 py-3 font-semibold text-white transition hover:bg-red-800">Cancel booking</button>
+      <a href="{% url 'dashboard:bookings' business.slug %}" class="rounded-full border border-espresso/20 px-6 py-3 font-medium transition hover:border-espresso">Keep it</a>
+    </form>
+  </div>
+{% endblock %}

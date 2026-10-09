@@ -117,8 +117,19 @@ def _merge(intervals: Iterable[Interval]) -> list[Interval]:
     return merged
 
 
-def get_available_slots(staff: Staff, service: Service, day: date, now: datetime) -> list[datetime]:
-    """Load one staff member's schedule for local `day` and generate slots."""
+def get_available_slots(
+    staff: Staff,
+    service: Service,
+    day: date,
+    now: datetime,
+    *,
+    ignore_booking_id: int | None = None,
+) -> list[datetime]:
+    """Load one staff member's schedule for local `day` and generate slots.
+
+    `ignore_booking_id`: when rescheduling, the booking's own current slot
+    mustn't count as busy, or it couldn't move by 15 minutes.
+    """
     if not (staff.is_active and service.is_active):
         return []
     if not staff.services.filter(pk=service.pk).exists():
@@ -134,11 +145,12 @@ def get_available_slots(staff: Staff, service: Service, day: date, now: datetime
     ]
     # Only rows that overlap this local day; same half-open overlap test as Interval.
     # A pending hold past its expiry is treated as free even before it is swept.
-    bookings = (
-        Booking.objects.filter(staff=staff, start_at__lt=day_end, end_at__gt=day_start)
-        .filter(_blocking_bookings(now))
-        .values_list("start_at", "end_at")
-    )
+    blocking = Booking.objects.filter(
+        staff=staff, start_at__lt=day_end, end_at__gt=day_start
+    ).filter(_blocking_bookings(now))
+    if ignore_booking_id is not None:
+        blocking = blocking.exclude(pk=ignore_booking_id)
+    bookings = blocking.values_list("start_at", "end_at")
     time_off = staff.time_off.filter(start_at__lt=day_end, end_at__gt=day_start).values_list(
         "start_at", "end_at"
     )
@@ -514,3 +526,109 @@ def _lock_for_email(booking_id: int) -> Booking | None:
         .filter(pk=booking_id)
         .first()
     )
+
+
+# --- Owner changes: cancel & reschedule -----------------------------------
+
+CHANGEABLE_STATUSES = [Booking.Status.PENDING_PAYMENT, Booking.Status.CONFIRMED]
+
+
+class BookingChangeNotAllowed(Exception):
+    """The booking can't be cancelled or rescheduled (already past, cancelled, …)."""
+
+
+def _check_changeable(booking: Booking, now: datetime) -> None:
+    if booking.status not in CHANGEABLE_STATUSES:
+        raise BookingChangeNotAllowed(
+            f"This booking is already {booking.get_status_display().lower()}."
+        )
+    if booking.start_at <= now:
+        raise BookingChangeNotAllowed("This booking has already started.")
+
+
+def cancel_booking(booking_id: int, *, now: datetime) -> Booking:
+    """Cancel an upcoming booking. A paid deposit becomes refund_due.
+
+    Lock order matches the webhook (payment rows, then the booking), so a
+    cancel and a late payment can't deadlock. Whichever commits second sees
+    the other's result: the webhook flags a payment for a cancelled booking as
+    refund_due, and a cancel flags an already-paid deposit as refund_due.
+    """
+    with transaction.atomic():
+        paid = list(
+            Payment.objects.select_for_update().filter(
+                booking_id=booking_id, status=Payment.Status.SUCCESS
+            )
+        )
+        booking = _lock_booking(booking_id)
+        _check_changeable(booking, now)
+        booking.status = Booking.Status.CANCELLED
+        booking.save(update_fields=["status"])
+        for payment in paid:
+            payment.status = Payment.Status.REFUND_DUE
+            payment.save(update_fields=["status"])
+        _queue_email("send_cancellation_email", booking.pk)
+    return booking
+
+
+def reschedule_booking(
+    booking_id: int, *, staff: Staff, start_at: datetime, now: datetime
+) -> Booking:
+    """Move an upcoming booking to another time (and optionally staff member).
+
+    Payments stay attached to the booking; status is unchanged. The 24h
+    reminder is re-armed for the new time. Raises SlotUnavailable if the new
+    time isn't free, including when another booking wins a race for it.
+    """
+    with transaction.atomic():
+        booking = _lock_booking(booking_id)
+        _check_changeable(booking, now)
+        service = booking.service
+        if staff.business_id != booking.staff.business_id:
+            raise BookingChangeNotAllowed("That staff member works for another business.")
+        if not staff.services.filter(pk=service.pk).exists():
+            raise BookingChangeNotAllowed(f"{staff.name} doesn't offer {service.name}.")
+
+        expire_stale_holds(staff, now)
+        day = start_at.astimezone(ZoneInfo(staff.business.timezone)).date()
+        free = get_available_slots(staff, service, day, now, ignore_booking_id=booking.pk)
+        if start_at not in free:
+            raise SlotUnavailable("That time is no longer available.")
+
+        old_start = booking.start_at
+        booking.staff = staff
+        booking.start_at = start_at
+        booking.end_at = start_at + service.duration
+        booking.reminder_sent_at = None
+        try:
+            with transaction.atomic():
+                booking.save(update_fields=["staff", "start_at", "end_at", "reminder_sent_at"])
+        except IntegrityError as exc:
+            if _constraint_name(exc) == "booking_no_overlap_per_staff":
+                raise SlotUnavailable("Sorry, that time was just taken.") from exc
+            raise
+        _queue_email("send_rescheduled_email", booking.pk, old_start.isoformat())
+    return booking
+
+
+def _lock_booking(booking_id: int) -> Booking:
+    return (
+        Booking.objects.select_for_update(of=("self",))
+        .select_related("staff__business", "service")
+        .get(pk=booking_id)
+    )
+
+
+def _queue_email(task_name: str, *args: object) -> None:
+    """Queue an email task after commit; log (don't raise) if the broker is down."""
+    from . import tasks  # tasks.py imports this module
+
+    task = getattr(tasks, task_name)
+
+    def enqueue() -> None:
+        try:
+            task.delay(*args)
+        except Exception:
+            logger.warning("Couldn't queue %s%r", task_name, args, exc_info=True)
+
+    transaction.on_commit(enqueue)

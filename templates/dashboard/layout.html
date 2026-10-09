@@ -20,6 +20,8 @@
       </div>
       <p class="mt-1 text-sm text-taupe">All times in {{ business.timezone }}.</p>
       <nav aria-label="Dashboard" class="mt-6 flex gap-1 overflow-x-auto">
+        <a href="{% url 'dashboard:bookings' business.slug %}" {% if nav == "bookings" %}aria-current="page"{% endif %}
+           class="rounded-t-xl px-4 py-2.5 text-sm font-medium transition {% if nav == "bookings" %}bg-ivory text-espresso{% else %}text-taupe hover:text-espresso{% endif %}">Bookings</a>
         <a href="{% url 'dashboard:services' business.slug %}" {% if nav == "services" %}aria-current="page"{% endif %}
            class="rounded-t-xl px-4 py-2.5 text-sm font-medium transition {% if nav == "services" %}bg-ivory text-espresso{% else %}text-taupe hover:text-espresso{% endif %}">Services</a>
         <a href="{% url 'dashboard:staff' business.slug %}" {% if nav == "staff" %}aria-current="page"{% endif %}

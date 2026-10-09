@@ -1,0 +1,15 @@
+{% load tz %}{% autoescape off %}{% localtime off %}Hi {{ booking.customer_name }},
+
+{{ business.name }} has moved your booking to a new time.
+
+  Service:  {{ booking.service.name }}
+  With:     {{ booking.staff.name }}
+  Now:      {{ start|date:"l j F Y" }}, {{ start|time:"H:i" }}–{{ end|time:"H:i" }} ({{ business.timezone }})
+  Was:      {{ old_start|date:"l j F Y" }}, {{ old_start|time:"H:i" }}
+
+Your booking, and any deposit you've paid, carries over to the new time.
+
+View your booking: {{ booking_url }}
+
+{{ business.name }}
+{% endlocaltime %}{% endautoescape %}

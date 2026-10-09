@@ -34,6 +34,14 @@ def b_slug(a: Tenant, b: Tenant) -> dict[str, Any]:
 # Attacks using B's slug.
 B_SLUG_CASES: list[Case] = [
     ("business", "GET", b_slug, {}),
+    ("bookings", "GET", b_slug, {}),
+    ("booking_cancel", "GET", lambda a, b: {"slug": b.business.slug, "pk": b.booking.pk}, {}),
+    (
+        "booking_reschedule",
+        "GET",
+        lambda a, b: {"slug": b.business.slug, "pk": b.booking.pk},
+        {},
+    ),
     ("services", "GET", b_slug, {}),
     ("service_new", "POST", b_slug, SERVICE_DATA),
     (
@@ -67,8 +75,35 @@ B_SLUG_CASES: list[Case] = [
     ),
 ]
 
+RESCHEDULE_DATA = {"staff": "", "date": "2026-01-05", "start": "2026-01-05T10:00Z"}
+
+# POSTs to the booking actions, using B's slug.
+B_SLUG_CASES += [
+    ("booking_cancel", "POST", lambda a, b: {"slug": b.business.slug, "pk": b.booking.pk}, {}),
+    (
+        "booking_reschedule",
+        "POST",
+        lambda a, b: {"slug": b.business.slug, "pk": b.booking.pk},
+        RESCHEDULE_DATA,
+    ),
+]
+
 # Attacks using A's own slug (which A may access) but B's object ids.
 MIXED_ID_CASES: list[Case] = [
+    ("booking_cancel", "GET", lambda a, b: {"slug": a.business.slug, "pk": b.booking.pk}, {}),
+    ("booking_cancel", "POST", lambda a, b: {"slug": a.business.slug, "pk": b.booking.pk}, {}),
+    (
+        "booking_reschedule",
+        "GET",
+        lambda a, b: {"slug": a.business.slug, "pk": b.booking.pk},
+        {},
+    ),
+    (
+        "booking_reschedule",
+        "POST",
+        lambda a, b: {"slug": a.business.slug, "pk": b.booking.pk},
+        RESCHEDULE_DATA,
+    ),
     ("service_edit", "GET", lambda a, b: {"slug": a.business.slug, "pk": b.service.pk}, {}),
     (
         "service_edit",

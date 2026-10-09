@@ -36,7 +36,7 @@ def test_owner_with_one_business_lands_on_it_after_login(client: Client, a: Tena
         reverse("dashboard:login"), {"username": "owner_a", "password": PASSWORD}, follow=True
     )
 
-    assert response.redirect_chain[-1][0] == url("services", a)
+    assert response.redirect_chain[-1][0] == url("bookings", a)
     assert "Glow Salon" in response.text
 
 

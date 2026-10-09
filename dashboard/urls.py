@@ -17,6 +17,13 @@ urlpatterns = [
     path("", views.home, name="home"),
     # Everything below is scoped to one of the owner's businesses by <slug>.
     path("<slug:slug>/", views.business_home, name="business"),
+    path("<slug:slug>/bookings/", views.bookings, name="bookings"),
+    path("<slug:slug>/bookings/<int:pk>/cancel/", views.booking_cancel, name="booking_cancel"),
+    path(
+        "<slug:slug>/bookings/<int:pk>/reschedule/",
+        views.booking_reschedule,
+        name="booking_reschedule",
+    ),
     path("<slug:slug>/services/", views.services, name="services"),
     path("<slug:slug>/services/new/", views.service_form, name="service_new"),
     path("<slug:slug>/services/<int:pk>/", views.service_form, name="service_edit"),

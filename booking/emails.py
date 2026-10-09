@@ -56,3 +56,29 @@ def send_reminder(booking: Booking) -> None:
         f"Reminder: {booking.service.name} on {_day(start)} at {start:%H:%M}",
         "booking/emails/reminder.txt",
     )
+
+
+def send_cancellation(booking: Booking, *, refund_due: bool) -> None:
+    start = booking.start_at.astimezone(ZoneInfo(booking.staff.business.timezone))
+    send_mail(
+        subject=f"Cancelled: {booking.service.name} on {_day(start)} at {start:%H:%M}",
+        message=render_to_string(
+            "booking/emails/cancelled.txt", {**_context(booking), "refund_due": refund_due}
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[booking.customer_email],
+    )
+
+
+def send_rescheduled(booking: Booking, *, old_start: datetime) -> None:
+    tz = ZoneInfo(booking.staff.business.timezone)
+    start = booking.start_at.astimezone(tz)
+    send_mail(
+        subject=f"Rescheduled: {booking.service.name} now {_day(start)} at {start:%H:%M}",
+        message=render_to_string(
+            "booking/emails/rescheduled.txt",
+            {**_context(booking), "old_start": old_start.astimezone(tz)},
+        ),
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[booking.customer_email],
+    )

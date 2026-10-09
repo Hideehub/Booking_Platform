@@ -1,0 +1,15 @@
+{% load tz %}{% autoescape off %}{% localtime off %}Hi {{ booking.customer_name }},
+
+Your booking with {{ business.name }} has been cancelled by the business.
+
+  Service:  {{ booking.service.name }}
+  With:     {{ booking.staff.name }}
+  Was:      {{ start|date:"l j F Y" }}, {{ start|time:"H:i" }}–{{ end|time:"H:i" }} ({{ business.timezone }})
+{% if refund_due %}
+Your deposit will be refunded.
+{% endif %}
+We're sorry for the inconvenience. To book another time:
+{{ booking_url }}
+
+{{ business.name }}
+{% endlocaltime %}{% endautoescape %}
