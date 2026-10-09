@@ -1,0 +1,11 @@
+{# One form field: label, widget, help text, errors. Expects `field`. #}
+{% if field.field.widget.input_type == "checkbox" %}
+  <label class="flex items-center gap-3 text-sm font-medium text-espresso">{{ field }} {{ field.label }}</label>
+{% else %}
+  <div>
+    <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-cocoa">{{ field.label }}</label>
+    {{ field }}
+    {% if field.help_text %}<p class="mt-1.5 text-xs text-taupe">{{ field.help_text }}</p>{% endif %}
+  </div>
+{% endif %}
+{% for error in field.errors %}<p class="mt-1.5 text-sm text-red-700">{{ error }}</p>{% endfor %}

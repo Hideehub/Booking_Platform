@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}{% block page_title %}Dashboard{% endblock %} · {{ business.name }} · Booking Platform{% endblock %}
+
+{% block header_action %}
+  <form method="post" action="{% url 'dashboard:logout' %}" class="flex items-center gap-3">
+    {% csrf_token %}
+    <span class="hidden text-sm text-taupe sm:inline">{{ request.user.get_username }}</span>
+    <button type="submit" class="rounded-full border border-espresso/15 px-4 py-2 text-sm font-medium text-cocoa transition hover:border-espresso/40 hover:text-espresso">Sign out</button>
+  </form>
+{% endblock %}
+
+{% block content %}
+  <div class="border-b border-linen bg-sand/50">
+    <div class="mx-auto max-w-6xl px-5 pt-8 sm:px-8">
+      <p class="text-xs font-semibold uppercase tracking-[0.25em] text-gold-deep">Owner dashboard</p>
+      <div class="mt-2 flex flex-wrap items-end justify-between gap-3">
+        <h1 class="text-3xl font-semibold sm:text-4xl">{{ business.name }}</h1>
+        <a href="{% url 'booking:book' business.slug %}" class="text-sm font-medium text-cocoa underline decoration-gold decoration-2 underline-offset-4 hover:text-espresso">View booking page</a>
+      </div>
+      <p class="mt-1 text-sm text-taupe">All times in {{ business.timezone }}.</p>
+      <nav aria-label="Dashboard" class="mt-6 flex gap-1 overflow-x-auto">
+        <a href="{% url 'dashboard:services' business.slug %}" {% if nav == "services" %}aria-current="page"{% endif %}
+           class="rounded-t-xl px-4 py-2.5 text-sm font-medium transition {% if nav == "services" %}bg-ivory text-espresso{% else %}text-taupe hover:text-espresso{% endif %}">Services</a>
+        <a href="{% url 'dashboard:staff' business.slug %}" {% if nav == "staff" %}aria-current="page"{% endif %}
+           class="rounded-t-xl px-4 py-2.5 text-sm font-medium transition {% if nav == "staff" %}bg-ivory text-espresso{% else %}text-taupe hover:text-espresso{% endif %}">Staff &amp; hours</a>
+      </nav>
+    </div>
+  </div>
+
+  <div class="mx-auto max-w-6xl px-5 py-10 sm:px-8">
+    {% if messages %}
+      <ul class="mb-8 space-y-2">
+        {% for message in messages %}
+          <li role="status" class="rounded-2xl px-5 py-3 text-sm {% if message.level_tag == "warning" %}border border-amber-200 bg-amber-50 text-amber-900{% elif message.level_tag == "error" %}border border-red-200 bg-red-50 text-red-800{% else %}border border-emerald-200 bg-emerald-50 text-emerald-900{% endif %}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+    {% block dashboard %}{% endblock %}
+  </div>
+{% endblock %}

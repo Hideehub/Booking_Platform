@@ -1,0 +1,72 @@
+{% extends "dashboard/layout.html" %}
+{% load booking_extras %}
+
+{% block page_title %}{{ member.name }}{% endblock %}
+
+{% block dashboard %}
+  <a href="{% url 'dashboard:staff' business.slug %}" class="text-sm text-taupe hover:text-espresso">← Staff</a>
+  <div class="mt-2 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-4">
+      <span aria-hidden="true" class="flex h-14 w-14 items-center justify-center rounded-full bg-espresso font-display text-lg font-semibold text-ivory">{{ member.name|initials }}</span>
+      <div>
+        <h2 class="text-2xl font-semibold">{{ member.name }}</h2>
+        <p class="text-sm text-taupe">{% for s in member.services.all %}{{ s.name }}{% if not forloop.last %}, {% endif %}{% empty %}No services yet{% endfor %}{% if not member.is_active %} · Inactive{% endif %}</p>
+      </div>
+    </div>
+    <a href="{% url 'dashboard:staff_edit' business.slug member.pk %}" class="rounded-full border border-espresso/20 px-5 py-2.5 text-sm font-medium transition hover:border-espresso">Edit details</a>
+  </div>
+
+  <div class="mt-10 grid gap-8 lg:grid-cols-2">
+    {# --- Working hours --- #}
+    <section class="rounded-3xl bg-white p-6 ring-1 ring-linen sm:p-8">
+      <h3 class="text-xl font-semibold">Working hours</h3>
+      <p class="mt-1 text-sm text-taupe">Weekly, in local time. Add two shifts on one day for a break.</p>
+      {% if shifts %}
+        <ul class="mt-5 divide-y divide-linen">
+          {% for shift in shifts %}
+            <li class="flex items-center justify-between py-3 text-sm">
+              <span><span class="inline-block w-24 font-medium">{{ shift.get_weekday_display }}</span> {{ shift.start_time|time:"H:i" }}–{{ shift.end_time|time:"H:i" }}</span>
+              <form method="post" action="{% url 'dashboard:shift_delete' business.slug member.pk shift.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="text-taupe hover:text-red-700" aria-label="Remove {{ shift.get_weekday_display }} {{ shift.start_time|time:'H:i' }} shift">Remove</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mt-5 rounded-2xl bg-sand/60 px-4 py-3 text-sm text-cocoa">No working hours yet, so no times can be booked.</p>
+      {% endif %}
+      <form method="post" action="{% url 'dashboard:shift_add' business.slug member.pk %}" class="mt-6 grid gap-4 border-t border-dashed border-linen pt-6 sm:grid-cols-3">
+        {% csrf_token %}
+        {% for field in hours_form %}<div>{% include "dashboard/_field.html" %}</div>{% endfor %}
+        <button type="submit" class="rounded-full bg-espresso px-5 py-2.5 text-sm font-semibold text-ivory transition hover:bg-cocoa sm:col-span-3 sm:justify-self-start">Add shift</button>
+      </form>
+    </section>
+
+    {# --- Time off --- #}
+    <section class="rounded-3xl bg-white p-6 ring-1 ring-linen sm:p-8">
+      <h3 class="text-xl font-semibold">Time off</h3>
+      <p class="mt-1 text-sm text-taupe">Holidays and absences, in local time. Existing bookings aren't cancelled.</p>
+      {% if time_off %}
+        <ul class="mt-5 divide-y divide-linen">
+          {% for period in time_off %}
+            <li class="flex items-center justify-between gap-4 py-3 text-sm">
+              <span>{{ period.start_at|date:"D j M, H:i" }} – {{ period.end_at|date:"D j M, H:i" }}{% if period.reason %} <span class="text-taupe">· {{ period.reason }}</span>{% endif %}</span>
+              <form method="post" action="{% url 'dashboard:time_off_delete' business.slug member.pk period.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="text-taupe hover:text-red-700">Remove</button>
+              </form>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mt-5 rounded-2xl bg-sand/60 px-4 py-3 text-sm text-cocoa">No time off planned.</p>
+      {% endif %}
+      <form method="post" action="{% url 'dashboard:time_off_add' business.slug member.pk %}" class="mt-6 grid gap-4 border-t border-dashed border-linen pt-6 sm:grid-cols-2">
+        {% csrf_token %}
+        {% for field in time_off_form %}<div class="{% if field.name == 'reason' %}sm:col-span-2{% endif %}">{% include "dashboard/_field.html" %}</div>{% endfor %}
+        <button type="submit" class="rounded-full bg-espresso px-5 py-2.5 text-sm font-semibold text-ivory transition hover:bg-cocoa sm:col-span-2 sm:justify-self-start">Add time off</button>
+      </form>
+    </section>
+  </div>
+{% endblock %}

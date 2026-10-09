@@ -27,9 +27,15 @@ INSTALLED_APPS = [
     "core",
     "accounts",
     "booking",
+    "dashboard",
 ]
 
 AUTH_USER_MODEL = "accounts.User"
+
+# Business owners sign in to the dashboard; there is no customer login.
+LOGIN_URL = "dashboard:login"
+LOGIN_REDIRECT_URL = "dashboard:home"
+LOGOUT_REDIRECT_URL = "dashboard:login"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

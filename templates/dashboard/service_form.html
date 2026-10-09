@@ -1,0 +1,14 @@
+{% extends "dashboard/layout.html" %}
+
+{% block page_title %}{% if service %}Edit {{ service.name }}{% else %}Add service{% endif %}{% endblock %}
+
+{% block dashboard %}
+  <a href="{% url 'dashboard:services' business.slug %}" class="text-sm text-taupe hover:text-espresso">← Services</a>
+  <h2 class="mt-2 text-2xl font-semibold">{% if service %}Edit {{ service.name }}{% else %}Add a service{% endif %}</h2>
+  <form method="post" class="mt-6 max-w-xl space-y-5 rounded-3xl bg-white p-6 ring-1 ring-linen sm:p-8">
+    {% csrf_token %}
+    {% for field in form %}{% include "dashboard/_field.html" %}{% endfor %}
+    <p class="text-xs text-taupe">Prices are in {{ business.currency }}. Services can't be deleted once booked; untick "Customers can book" to hide one.</p>
+    <button type="submit" class="rounded-full bg-espresso px-6 py-3 font-semibold text-ivory transition hover:bg-cocoa">Save service</button>
+  </form>
+{% endblock %}

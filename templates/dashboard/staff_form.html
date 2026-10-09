@@ -1,0 +1,25 @@
+{% extends "dashboard/layout.html" %}
+
+{% block page_title %}{% if member %}Edit {{ member.name }}{% else %}Add staff member{% endif %}{% endblock %}
+
+{% block dashboard %}
+  <a href="{% if member %}{% url 'dashboard:staff_detail' business.slug member.pk %}{% else %}{% url 'dashboard:staff' business.slug %}{% endif %}" class="text-sm text-taupe hover:text-espresso">← {% if member %}{{ member.name }}{% else %}Staff{% endif %}</a>
+  <h2 class="mt-2 text-2xl font-semibold">{% if member %}Edit {{ member.name }}{% else %}Add a staff member{% endif %}</h2>
+  <form method="post" class="mt-6 max-w-xl space-y-5 rounded-3xl bg-white p-6 ring-1 ring-linen sm:p-8">
+    {% csrf_token %}
+    {% for field in form %}
+      {% if field.name == "services" %}
+        <fieldset>
+          <legend class="text-sm font-medium text-cocoa">{{ field.label }}</legend>
+          <div class="mt-2 space-y-2">
+            {% for option in field %}<label class="flex items-center gap-3 text-sm">{{ option.tag }} {{ option.choice_label }}</label>{% empty %}<p class="text-sm text-taupe">Add a service first.</p>{% endfor %}
+          </div>
+          {% for error in field.errors %}<p class="mt-1.5 text-sm text-red-700">{{ error }}</p>{% endfor %}
+        </fieldset>
+      {% else %}
+        {% include "dashboard/_field.html" %}
+      {% endif %}
+    {% endfor %}
+    <button type="submit" class="rounded-full bg-espresso px-6 py-3 font-semibold text-ivory transition hover:bg-cocoa">Save</button>
+  </form>
+{% endblock %}

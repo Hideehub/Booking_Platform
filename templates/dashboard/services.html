@@ -1,0 +1,33 @@
+{% extends "dashboard/layout.html" %}
+{% load booking_extras %}
+
+{% block page_title %}Services{% endblock %}
+
+{% block dashboard %}
+  <div class="flex items-center justify-between gap-4">
+    <h2 class="text-2xl font-semibold">Services</h2>
+    <a href="{% url 'dashboard:service_new' business.slug %}" class="rounded-full bg-espresso px-5 py-2.5 text-sm font-semibold text-ivory transition hover:bg-cocoa">Add service</a>
+  </div>
+  {% if services %}
+    <div class="mt-6 overflow-hidden rounded-2xl bg-white ring-1 ring-linen">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-sand/60 text-xs uppercase tracking-wider text-taupe">
+          <tr><th class="px-5 py-3 font-semibold">Service</th><th class="px-5 py-3 font-semibold">Duration</th><th class="hidden px-5 py-3 font-semibold sm:table-cell">Price</th><th class="px-5 py-3 font-semibold">Deposit</th><th class="px-5 py-3"><span class="sr-only">Actions</span></th></tr>
+        </thead>
+        <tbody class="divide-y divide-linen">
+          {% for service in services %}
+            <tr class="{% if not service.is_active %}text-taupe{% endif %}">
+              <td class="px-5 py-4 font-medium">{{ service.name }}{% if not service.is_active %} <span class="ml-2 rounded-full bg-sand px-2 py-0.5 text-xs font-semibold">Inactive</span>{% endif %}</td>
+              <td class="px-5 py-4">{{ service.duration|minutes }}</td>
+              <td class="hidden px-5 py-4 sm:table-cell">{{ service.price_minor|money:business.currency }}</td>
+              <td class="px-5 py-4">{{ service.deposit_minor|money:business.currency }}</td>
+              <td class="px-5 py-4 text-right"><a href="{% url 'dashboard:service_edit' business.slug service.pk %}" class="font-medium text-gold-deep hover:text-espresso">Edit</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="mt-6 rounded-2xl bg-sand/60 px-5 py-4 text-cocoa">No services yet. Add one so customers can book.</p>
+  {% endif %}
+{% endblock %}

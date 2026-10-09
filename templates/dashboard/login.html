@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Owner sign in · Booking Platform{% endblock %}
+
+{% block header_action %}{% endblock %}
+
+{% block content %}
+  <div class="mx-auto max-w-md px-5 py-16 sm:py-24">
+    <p class="text-xs font-semibold uppercase tracking-[0.25em] text-gold-deep">For businesses</p>
+    <h1 class="mt-3 text-4xl font-semibold">Owner sign in</h1>
+    <p class="mt-3 text-cocoa">Manage your services, staff and bookings.</p>
+
+    <form method="post" class="mt-10 space-y-5 rounded-3xl bg-white p-6 shadow-xl shadow-espresso/10 ring-1 ring-linen sm:p-8">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+        <p role="alert" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ form.non_field_errors|join:" " }}</p>
+      {% endif %}
+      {% for field in form %}
+        <div>
+          <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-cocoa">{{ field.label }}</label>
+          <input type="{{ field.field.widget.input_type }}" name="{{ field.html_name }}" id="{{ field.id_for_label }}"
+                 value="{% if field.field.widget.input_type != 'password' %}{{ field.value|default_if_none:'' }}{% endif %}" required
+                 autocomplete="{% if field.name == 'password' %}current-password{% else %}username{% endif %}"
+                 class="mt-1.5 block w-full rounded-xl border border-linen bg-ivory px-4 py-3 focus:border-gold-deep focus:bg-white focus:outline-none focus:ring-4 focus:ring-gold-soft">
+        </div>
+      {% endfor %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button type="submit" class="w-full rounded-full bg-espresso px-6 py-3.5 font-semibold text-ivory shadow-lg shadow-espresso/15 transition hover:bg-cocoa">Sign in</button>
+    </form>
+  </div>
+{% endblock %}

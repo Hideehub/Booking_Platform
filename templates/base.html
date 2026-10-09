@@ -20,9 +20,11 @@
       <a href="{% url 'booking:home' %}" class="font-display text-xl font-semibold tracking-tight text-espresso sm:text-2xl">
         Booking <span class="italic text-gold-deep">Platform</span>
       </a>
-      <a href="{% url 'booking:home' %}#businesses" class="rounded-full border border-espresso/15 px-4 py-2 text-sm font-medium text-cocoa transition hover:border-espresso/40 hover:text-espresso">
-        Book now
-      </a>
+      {% block header_action %}
+        <a href="{% url 'booking:home' %}#businesses" class="rounded-full border border-espresso/15 px-4 py-2 text-sm font-medium text-cocoa transition hover:border-espresso/40 hover:text-espresso">
+          Book now
+        </a>
+      {% endblock %}
     </div>
   </header>
 
