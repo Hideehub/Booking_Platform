@@ -107,13 +107,13 @@ def test_render_hostname_and_url_are_trusted_automatically() -> None:
     # SITE_URL is left unset (not empty): on Render it simply isn't configured.
     conf = read_settings(
         **env,
-        RENDER_EXTERNAL_HOSTNAME="raya.onrender.com",
-        RENDER_EXTERNAL_URL="https://raya.onrender.com",
+        RENDER_EXTERNAL_HOSTNAME="booking-platform.onrender.com",
+        RENDER_EXTERNAL_URL="https://booking-platform.onrender.com",
     )
 
-    assert "raya.onrender.com" in conf["allowed_hosts"]
-    assert "https://raya.onrender.com" in conf["csrf_origins"]
-    assert conf["site_url"] == "https://raya.onrender.com"
+    assert "booking-platform.onrender.com" in conf["allowed_hosts"]
+    assert "https://booking-platform.onrender.com" in conf["csrf_origins"]
+    assert conf["site_url"] == "https://booking-platform.onrender.com"
 
 
 def test_prod_serves_fingerprinted_compressed_static_files() -> None:
@@ -130,3 +130,46 @@ def test_start_script_is_executable_and_valid_bash(script: str) -> None:
     assert os.access(path, os.X_OK), f"{script} must be executable"
     result = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+SECRET = "S3cretPassw0rd"
+
+
+@pytest.mark.parametrize(
+    ("redis_url", "shown"),
+    [
+        (f'"rediss://default:{SECRET}@x.upstash.io:6379"', "it starts with '\"rediss'"),
+        (
+            f"REDIS_URL=rediss://default:{SECRET}@x.upstash.io:6379",
+            "it starts with 'REDIS_URL=rediss'",
+        ),
+        (
+            f"redis-cli --tls -u redis://default:{SECRET}@x.upstash.io:6379",
+            "it starts with 'redis-cli --tls -u redis'",
+        ),
+        (f"https://x.upstash.io?token={SECRET}", "it starts with 'https'"),
+        (SECRET, "it contains no '://' at all"),
+    ],
+)
+def test_prod_refuses_a_malformed_redis_url_without_revealing_it(
+    redis_url: str, shown: str
+) -> None:
+    clean = {k: v for k, v in os.environ.items() if k not in DEV_DEFAULTS}
+    result = subprocess.run(
+        [sys.executable, "-c", "import django; django.setup()"],
+        cwd=BASE_DIR,
+        env={**clean, **PROD_ENV, "REDIS_URL": redis_url},
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "REDIS_URL must start with redis:// or rediss://" in result.stderr
+    assert shown in result.stderr
+    assert SECRET not in result.stderr  # never echo the password
+
+
+def test_prod_accepts_an_upstash_url_with_surrounding_whitespace() -> None:
+    conf = read_settings(**PROD_ENV, REDIS_URL=" rediss://default:pw@x.upstash.io:6379\n")
+
+    assert conf["broker_use_ssl"] != "None"

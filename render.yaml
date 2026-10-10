@@ -4,7 +4,9 @@
 # secrets you paste into the Render dashboard (sync: false = never in git).
 services:
   - type: web
-    name: raya-effect
+    # The platform's name; it sets the URL (booking-platform.onrender.com, or with
+    # a suffix if taken). Raya.Effect is only the demo business it hosts.
+    name: booking-platform
     runtime: docker
     plan: free
     dockerfilePath: ./Dockerfile
@@ -27,7 +29,7 @@ services:
       - key: EMAIL_URL
         value: consolemail://
       - key: DEFAULT_FROM_EMAIL
-        value: Raya.Effect <bookings@example.com>
+        value: Booking Platform <bookings@example.com>
       # SITE_URL, ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS come from Render's
       # RENDER_EXTERNAL_URL / RENDER_EXTERNAL_HOSTNAME automatically.
       # Free-tier schedule: every 15 minutes keeps Redis commands and Neon

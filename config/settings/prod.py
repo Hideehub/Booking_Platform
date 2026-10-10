@@ -7,7 +7,7 @@ variable crashes at startup instead of running with an insecure fallback.
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F403
-from .base import PAYSTACK_SECRET_KEY, SITE_URL, env
+from .base import PAYSTACK_SECRET_KEY, REDIS_URL, SITE_URL, env
 
 DEBUG = False
 
@@ -39,6 +39,17 @@ if not PAYSTACK_SECRET_KEY.strip():
     raise ImproperlyConfigured("PAYSTACK_SECRET_KEY must be set in production.")
 if not SITE_URL:
     raise ImproperlyConfigured("SITE_URL must be set in production.")
+
+# A mis-pasted REDIS_URL otherwise surfaces as kombu's cryptic "No such
+# transport: ''" from the worker. Say what's wrong, showing only the text
+# before "://" (never the password that follows it).
+if not REDIS_URL.strip().startswith(("redis://", "rediss://")):
+    _before, _sep, _ = REDIS_URL.partition("://")
+    _found = f"it starts with {_before[:30]!r}" if _sep else "it contains no '://' at all"
+    raise ImproperlyConfigured(
+        f"REDIS_URL must start with redis:// or rediss:// ({_found}). Remove any quotes, "
+        "variable name or command before the URL, e.g. rediss://default:<password>@<host>:6379"
+    )
 
 # SMTP settings from one URL, e.g. smtp+tls://user:password@smtp.example.com:587
 if not env("EMAIL_URL", default="").strip():

@@ -71,7 +71,9 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
 
-REDIS_URL: str = env("REDIS_URL", default="redis://localhost:6379/0")
+# Stripped: a stray space pasted into a hosting dashboard would otherwise
+# break the rediss:// (TLS) detection below.
+REDIS_URL: str = env("REDIS_URL", default="redis://localhost:6379/0").strip()
 
 # --- Celery ---------------------------------------------------------------
 CELERY_BROKER_URL = REDIS_URL

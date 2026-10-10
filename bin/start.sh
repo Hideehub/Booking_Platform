@@ -8,9 +8,9 @@ set -euo pipefail
 # Free hosting has no "pre-deploy" step or shell, so one-off setup runs here.
 python manage.py migrate --noinput
 if [ -n "${DJANGO_SUPERUSER_PASSWORD:-}" ]; then
-  # Uses DJANGO_SUPERUSER_USERNAME / _EMAIL / _PASSWORD; fails harmlessly if
-  # the user already exists.
-  python manage.py createsuperuser --noinput || echo "Superuser not created (probably exists)."
+  # Creates it from DJANGO_SUPERUSER_USERNAME / _EMAIL / _PASSWORD only if
+  # missing; never changes an existing user's password.
+  python manage.py ensure_superuser
 fi
 if [ -n "${DEMO_OWNER_PASSWORD:-}" ]; then
   python manage.py seed_demo
