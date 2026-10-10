@@ -27,8 +27,9 @@ COPY --from=tailwind --chmod=755 /tailwindcss /usr/local/bin/tailwindcss
 
 # Install dependencies before copying the code so this layer is cached
 # until a requirements file changes.
+# Production by default; docker-compose builds with requirements-dev.txt.
 COPY requirements.txt requirements-dev.txt ./
-ARG REQUIREMENTS=requirements-dev.txt
+ARG REQUIREMENTS=requirements.txt
 RUN pip install -r ${REQUIREMENTS}
 
 COPY . .
@@ -37,9 +38,18 @@ COPY . .
 # compose service rebuilds it on every template change instead.
 RUN tailwindcss -i assets/app.css -o static/css/app.css --minify
 
+# Fingerprint and compress static files into staticfiles/ for WhiteNoise.
+# Prod settings insist on real secrets, so give it throwaway build-time values
+# (nothing here connects to a database or sends anything).
+RUN DJANGO_SETTINGS_MODULE=config.settings.prod \
+    SECRET_KEY=build-only DATABASE_URL=sqlite:////tmp/build.sqlite3 \
+    PAYSTACK_SECRET_KEY=build-only SITE_URL=https://build.invalid EMAIL_URL=consolemail:// \
+    python manage.py collectstatic --noinput
+
 RUN useradd --create-home appuser && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000"]
+# Web server + Celery worker (beat embedded) in one container; see bin/start.sh.
+CMD ["bin/start.sh"]

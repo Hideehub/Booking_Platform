@@ -30,9 +30,10 @@ exclude = ["/migrations/"]
 module = ["environ", "celery", "celery.*"]
 ignore_missing_imports = true
 
-# Celery has no type hints, so @shared_task is an "untyped decorator".
+# Celery has no type hints, so @shared_task and signal handlers' decorators
+# are "untyped decorators".
 [[tool.mypy.overrides]]
-module = ["booking.tasks"]
+module = ["booking.tasks", "config.celery"]
 disallow_untyped_decorators = false
 
 # ModelAdmin[Model] isn't subscriptable at runtime without django-stubs-ext's

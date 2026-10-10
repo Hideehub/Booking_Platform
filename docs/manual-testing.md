@@ -6,21 +6,16 @@ Times in the admin are shown and entered in **UTC**. Customer pages and emails u
 
 ## 1. Create demo data
 
-In the admin (http://localhost:8000/admin/):
+```bash
+docker compose exec -e DEMO_OWNER_PASSWORD=choose-a-password web python manage.py seed_demo
+```
 
-1. **Businesses → Add business**
-   - Owner: your superuser · Name: `Glow Salon` · Slug: `glow-salon` · Timezone: `Africa/Lagos` · Currency: `NGN`
-   - Under **Services**, add one: Name `Haircut` · Duration `00:30:00` · Price minor `1000000` · Deposit minor `200000` (amounts are in kobo: ₦10,000 and ₦2,000)
-   - Save.
-2. **Staff → Add staff**
-   - Business: `Glow Salon` · Name: `Ada` · Services: move `Haircut` to the chosen list
-   - Under **Working hours**, add a row for each day Ada works, e.g. Monday–Saturday, start `09:00`, end `17:00` (local business time, not UTC)
-   - Save.
+This creates **Raya.Effect** (Africa/Lagos) with four services, three staff working Monday–Saturday 09:00–18:00, and the owner login `demo-owner` with the password you chose. Running it again changes nothing. If an older `demo-owner` user already exists, the command stops; start from an empty database with `docker compose down -v`.
 
 ## 2. Make a booking
 
-1. Open http://localhost:8000/b/glow-salon/
-2. Choose **Haircut** → **Ada** → a date → a time.
+1. Open http://localhost:8000/b/raya-effect/
+2. Choose **Haircut & style** → **Ada** → a date → a time.
 3. Enter a name and email, then click **Hold this time**.
 4. You land on the booking page (`/bookings/<id>/`), which says "We're holding this time until …". The hold lasts 15 minutes.
 
@@ -51,7 +46,7 @@ docker compose logs -f worker
 Within a few seconds of step 3 you'll see the email, starting with a line like:
 
 ```
-Subject: Booking confirmed: Haircut on Tue 20 Oct at 11:00
+Subject: Booking confirmed: Haircut & style on Tue 20 Oct at 11:00
 ```
 
 The times are in the business's timezone, and the email links back to the booking page.
@@ -79,6 +74,12 @@ The database rejects overlapping active bookings for the same staff member. If b
    docker compose logs worker | grep "lapsed hold"
    ```
    shows `Expired 1 lapsed hold(s)`, and the booking's status in the admin is *Expired*.
+
+## 7. Manage it as the owner
+
+1. Sign in at http://localhost:8000/owner/ as `demo-owner`.
+2. **Bookings** lists upcoming bookings by day, in Lagos time. Open one and choose **Reschedule** to move it to another time or staff member, or **Cancel** to cancel it. If the deposit was paid, it's marked for refund. The customer's email appears in `docker compose logs worker`.
+3. **Services** and **Staff & hours** let you change prices, durations, working hours and time off; changes show up on the booking page straight away.
 
 ## Reset
 

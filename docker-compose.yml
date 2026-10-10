@@ -1,6 +1,9 @@
 services:
   web:
-    build: .
+    build:
+      context: .
+      args:
+        REQUIREMENTS: requirements-dev.txt
     command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - .:/app
@@ -21,7 +24,10 @@ services:
 
   # Runs Celery tasks: emails, and whatever beat schedules.
   worker:
-    build: .
+    build:
+      context: .
+      args:
+        REQUIREMENTS: requirements-dev.txt
     command: celery -A config worker --loglevel=info
     volumes:
       - .:/app
@@ -41,7 +47,10 @@ services:
   # The scheduler: sends periodic tasks to the worker. Exactly one must run,
   # however many workers there are, or every periodic task runs twice.
   beat:
-    build: .
+    build:
+      context: .
+      args:
+        REQUIREMENTS: requirements-dev.txt
     # Schedule state goes to /tmp so it isn't written into the mounted repo.
     command: celery -A config beat --loglevel=info --schedule /tmp/celerybeat-schedule
     volumes:
@@ -53,7 +62,10 @@ services:
     depends_on: *app-deps
 
   css:
-    build: .
+    build:
+      context: .
+      args:
+        REQUIREMENTS: requirements-dev.txt
     # Rebuild static/css/app.css whenever a template changes. --watch=always
     # keeps watching even though compose gives the process no stdin.
     command: tailwindcss -i assets/app.css -o static/css/app.css --watch=always

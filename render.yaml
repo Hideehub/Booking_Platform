@@ -1,0 +1,49 @@
+# Render Blueprint: one free web service running the web server AND the Celery
+# worker (beat embedded); see bin/start.sh and docs/decisions.md.
+# Postgres is on Neon and Redis on Upstash (both free tiers); their URLs are
+# secrets you paste into the Render dashboard (sync: false = never in git).
+services:
+  - type: web
+    name: raya-effect
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz/
+    autoDeploy: true
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: SECRET_KEY
+        generateValue: true
+      # Neon: the *direct* connection string (not the -pooler one), with sslmode=require.
+      - key: DATABASE_URL
+        sync: false
+      # Upstash: the TLS URL, rediss://default:<password>@<host>:6379
+      - key: REDIS_URL
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      # Emails are written to the service logs until a real provider is set up.
+      - key: EMAIL_URL
+        value: consolemail://
+      - key: DEFAULT_FROM_EMAIL
+        value: Raya.Effect <bookings@example.com>
+      # SITE_URL, ALLOWED_HOSTS and CSRF_TRUSTED_ORIGINS come from Render's
+      # RENDER_EXTERNAL_URL / RENDER_EXTERNAL_HOSTNAME automatically.
+      # Free-tier schedule: every 15 minutes keeps Redis commands and Neon
+      # compute well inside the free limits (measured; see docs/decisions.md).
+      - key: HOLD_SWEEP_SECONDS
+        value: "900"
+      - key: CONFIRMATION_BACKSTOP_SECONDS
+        value: "900"
+      - key: REMINDER_SWEEP_SECONDS
+        value: "900"
+      # Optional one-off setup on start (both are no-ops once done):
+      - key: DEMO_OWNER_PASSWORD
+        sync: false
+      - key: DJANGO_SUPERUSER_USERNAME
+        sync: false
+      - key: DJANGO_SUPERUSER_EMAIL
+        sync: false
+      - key: DJANGO_SUPERUSER_PASSWORD
+        sync: false

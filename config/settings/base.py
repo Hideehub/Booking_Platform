@@ -4,6 +4,7 @@ Anything that differs between environments (secrets, hosts, debug) is read
 from environment variables; dev.py and prod.py only choose safe defaults.
 """
 
+import ssl
 from pathlib import Path
 
 import environ
@@ -74,22 +75,34 @@ REDIS_URL: str = env("REDIS_URL", default="redis://localhost:6379/0")
 
 # --- Celery ---------------------------------------------------------------
 CELERY_BROKER_URL = REDIS_URL
+# Hosted Redis such as Upstash uses TLS (rediss://); Celery refuses such a
+# URL unless told how to verify the certificate. Always verify.
+CELERY_BROKER_USE_SSL = (
+    {"ssl_cert_reqs": ssl.CERT_REQUIRED} if REDIS_URL.startswith("rediss://") else None
+)
+# An idle worker's BRPOP waits up to 30s instead of 1s. A queued task still
+# wakes it immediately, so this costs no latency, only idle Redis commands
+# (measured: ~4M/month at the default vs ~245K, see docs/decisions.md).
+CELERY_BROKER_TRANSPORT_OPTIONS = {"polling_interval": 30}
+CELERY_WORKER_ENABLE_REMOTE_CONTROL = False  # no pidbox fanout chatter
 CELERY_TASK_IGNORE_RESULT = True  # nothing reads task return values
 CELERY_TIMEZONE = "UTC"
+# Intervals are configurable so the free deployment can run them every 15
+# minutes (Redis command and Neon compute limits); dev keeps them quick.
 CELERY_BEAT_SCHEDULE = {
     "expire-stale-holds": {
         "task": "booking.tasks.expire_stale_holds_task",
-        "schedule": 60.0,
+        "schedule": env.float("HOLD_SWEEP_SECONDS", default=60),
     },
     # Backstop for confirmations queued on commit that never ran (broker down,
-    # worker crash) and for bookings confirmed by hand in the admin.
+    # worker crash, app asleep) and for bookings confirmed by hand in the admin.
     "send-pending-confirmations": {
         "task": "booking.tasks.send_pending_confirmations",
-        "schedule": 60.0,
+        "schedule": env.float("CONFIRMATION_BACKSTOP_SECONDS", default=60),
     },
     "send-due-reminders": {
         "task": "booking.tasks.send_due_reminders",
-        "schedule": 300.0,
+        "schedule": env.float("REMINDER_SWEEP_SECONDS", default=300),
     },
 }
 
@@ -97,7 +110,8 @@ CELERY_BEAT_SCHEDULE = {
 DEFAULT_FROM_EMAIL: str = env("DEFAULT_FROM_EMAIL", default="Bookings <bookings@localhost>")
 # Emails are sent from tasks, which have no request to build absolute links
 # from. Required; dev.py supplies http://localhost:8000.
-SITE_URL: str = env("SITE_URL").rstrip("/")
+# On Render, RENDER_EXTERNAL_URL (e.g. https://app.onrender.com) is set for us.
+SITE_URL: str = env("SITE_URL", default=env("RENDER_EXTERNAL_URL", default="")).rstrip("/")
 
 # Everything goes to stdout, where Docker and Render collect it. Third-party
 # libraries log warnings and up; our `booking` app also logs info (webhook

@@ -28,6 +28,7 @@ from booking.services import (
     send_booking_reminder,
 )
 from config.celery import app as celery_app
+from config.celery import run_periodic_tasks_on_start
 
 from .conftest import BookingFactory, at
 
@@ -377,3 +378,13 @@ def test_beat_schedule_runs_each_periodic_task_at_the_intended_interval() -> Non
     }
     for name in schedule:
         assert name in celery_app.tasks, f"{name} is scheduled but not registered"
+
+
+def test_worker_start_runs_each_periodic_task_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Catch-up after a free-tier sleep: beat alone would wait a full interval."""
+    sent: list[str] = []
+    monkeypatch.setattr(celery_app, "send_task", lambda name, *a, **k: sent.append(name))
+
+    run_periodic_tasks_on_start()
+
+    assert sorted(sent) == sorted(e["task"] for e in settings.CELERY_BEAT_SCHEDULE.values())

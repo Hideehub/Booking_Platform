@@ -11,6 +11,29 @@ from .base import PAYSTACK_SECRET_KEY, SITE_URL, env
 
 DEBUG = False
 
+# Render tells each service its public hostname and URL; trust them without
+# having to copy them into ALLOWED_HOSTS / CSRF_TRUSTED_ORIGINS by hand.
+_render_host = env("RENDER_EXTERNAL_HOSTNAME", default="")
+_render_url = env("RENDER_EXTERNAL_URL", default="")
+if _render_host:
+    ALLOWED_HOSTS = [*ALLOWED_HOSTS, _render_host]  # noqa: F405
+
+# Serve static files from the app itself (no separate file server). Prod only:
+# dev uses runserver's static handling, and staticfiles/ only exists in the
+# production image. Must sit right after SecurityMiddleware.
+MIDDLEWARE = [*MIDDLEWARE]  # noqa: F405
+MIDDLEWARE.insert(
+    MIDDLEWARE.index("django.middleware.security.SecurityMiddleware") + 1,
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+)
+
+# Fingerprinted, compressed static files (app.3f9c1e.css), cached for a year
+# by browsers. Built once at image build time by collectstatic.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
 # env() accepts PAYSTACK_SECRET_KEY="" (e.g. a copied .env.example); refuse it.
 if not PAYSTACK_SECRET_KEY.strip():
     raise ImproperlyConfigured("PAYSTACK_SECRET_KEY must be set in production.")
@@ -32,6 +55,8 @@ SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=60 * 60 * 24 * 30)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 CSRF_TRUSTED_ORIGINS: list[str] = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+if _render_url:
+    CSRF_TRUSTED_ORIGINS = [*CSRF_TRUSTED_ORIGINS, _render_url]
 
 # /healthz/ must answer over plain HTTP for the platform's health checker.
 SECURE_REDIRECT_EXEMPT = [r"^healthz/$"]
